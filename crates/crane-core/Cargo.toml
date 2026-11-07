@@ -1,0 +1,15 @@
+[package]
+name = "crane-core"
+description = "Sends HTTP requests for Crane and measures them"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+reqwest = "0.13"
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
