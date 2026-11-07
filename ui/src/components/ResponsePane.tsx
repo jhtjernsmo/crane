@@ -32,7 +32,7 @@ export function ResponsePane({ res }: { res: Response }) {
         <span className="mono">{formatBytes(res.size)}</span>
       </div>
       <TimingRuler {...res.timing} />
-      <div className="tabs" role="tablist">
+      <div className="tabs" role="tablist" aria-label="Response parts">
         <button role="tab" aria-selected={tab === 'body'} onClick={() => setTab('body')}>Body</button>
         <button role="tab" aria-selected={tab === 'headers'} onClick={() => setTab('headers')}>
           Headers <sup>{res.headers.length}</sup>

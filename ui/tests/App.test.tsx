@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as api from '../src/api'
 import App from '../src/App'
@@ -51,7 +51,8 @@ describe('App', () => {
     render(<App />)
     fireEvent.change(screen.getByLabelText('Address'), { target: { value: 'x.dev' } })
     fireEvent.click(screen.getByRole('button', { name: /send/i }))
-    fireEvent.click(await screen.findByRole('tab', { name: /headers/i }))
+    const tabs = await screen.findByRole('tablist', { name: 'Response parts' })
+    fireEvent.click(within(tabs).getByRole('tab', { name: /headers/i }))
     expect(screen.getByText('content-type')).toBeTruthy()
   })
 })

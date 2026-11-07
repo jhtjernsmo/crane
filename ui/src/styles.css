@@ -33,7 +33,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body, #root { height: 100%; }
 body { background: var(--bg); color: var(--ink); font: 14px/1.45 'IBM Plex Sans', sans-serif; }
-button, input, select { font: inherit; color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
 button { background: none; border: 0; cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .mono, kbd, pre, .m, .lbl, .meta { font-family: 'IBM Plex Mono', monospace; }
@@ -114,3 +114,25 @@ table.headers tr + tr { border-top: 1px solid var(--line); }
 .problem, .help { border: 1px solid var(--line); background: var(--panel); padding: 10px 12px; font-size: 13.5px; }
 .problem { border-left: 3px solid var(--bad); }
 .help { border-left: 3px solid var(--warn); }
+
+.row-gap { display: flex; align-items: center; gap: 12px; }
+.link { color: var(--accent); font-size: 12.5px; text-decoration: underline; text-underline-offset: 3px; }
+
+table.kv { width: 100%; border-collapse: collapse; table-layout: fixed; font: 12.5px 'IBM Plex Mono', monospace; }
+table.kv td { border-bottom: 1px solid var(--line); padding: 0; }
+table.kv td + td { border-left: 1px solid var(--line); }
+table.kv .tick { width: 30px; text-align: center; }
+table.kv .del { width: 30px; text-align: center; }
+table.kv .val { position: relative; width: 58%; }
+table.kv input:not([type='checkbox']) { width: 100%; border: 0; background: transparent; padding: 7px 8px; outline: none; }
+table.kv input:not([type='checkbox']):focus { background: var(--panel); box-shadow: inset 0 -2px 0 var(--accent); }
+table.kv input[type='checkbox'] { accent-color: var(--accent); }
+table.kv .val input { padding-right: 44px; }
+table.kv .eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font: 10.5px 'IBM Plex Mono', monospace; color: var(--mute); }
+table.kv .eye:hover, table.kv .del button:hover { color: var(--ink); }
+table.kv .del button { color: var(--mute); padding: 6px; display: inline-flex; }
+table.kv tr.off input:not([type='checkbox']) { color: var(--mute); text-decoration: line-through; }
+table.kv tr:last-child input::placeholder { color: var(--mute); opacity: 0.7; }
+
+textarea.code-edit { width: 100%; min-height: 180px; resize: vertical; border: 1px solid var(--line); background: var(--panel); padding: 10px 12px; font: 12.5px/1.65 'IBM Plex Mono', monospace; outline: none; tab-size: 2; white-space: pre; overflow: auto; }
+textarea.code-edit:focus { border-color: var(--ink); }

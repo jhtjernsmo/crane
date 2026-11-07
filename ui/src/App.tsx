@@ -2,17 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { type Response, sendRequest } from './api'
 import { Logo } from './components/Logo'
 import { RequestBar } from './components/RequestBar'
+import { RequestEditor } from './components/RequestEditor'
 import { ResponsePane } from './components/ResponsePane'
 import { StartHint } from './components/StartHint'
 import { formatMs } from './format'
+import { type Draft, buildSpec, emptyDraft, forHistory, reopenDraft } from './request'
 import { THEMES, type Theme, applyTheme, loadTheme } from './theme'
 
-/** One send this session. Saved collections come in a later step. */
+/** One send this session, with secret values already removed. Saved collections come in a later step. */
 interface Sent {
   id: number
   at: Date
-  method: string
-  url: string
+  draft: Draft
   res?: Response
   error?: string
 }
@@ -20,8 +21,7 @@ interface Sent {
 const HISTORY_LIMIT = 50
 
 export default function App() {
-  const [method, setMethod] = useState('GET')
-  const [url, setUrl] = useState('')
+  const [draft, setDraft] = useState<Draft>(emptyDraft)
   const [sending, setSending] = useState(false)
   const [current, setCurrent] = useState<Sent | null>(null)
   const [history, setHistory] = useState<Sent[]>([])
@@ -33,17 +33,17 @@ export default function App() {
   const send = useCallback(async () => {
     if (sending) return
     setSending(true)
-    const base = { id: nextId.current++, at: new Date(), method, url: url.trim() }
+    const base = { id: nextId.current++, at: new Date(), draft: forHistory({ ...draft, url: draft.url.trim() }) }
     let sent: Sent
     try {
-      sent = { ...base, res: await sendRequest({ method, url, headers: [], body: null }) }
+      sent = { ...base, res: await sendRequest(buildSpec(draft)) }
     } catch (e) {
       sent = { ...base, error: e instanceof Error ? e.message : String(e) }
     }
     setCurrent(sent)
     setHistory((h) => [sent, ...h].slice(0, HISTORY_LIMIT))
     setSending(false)
-  }, [method, url, sending])
+  }, [draft, sending])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -57,8 +57,7 @@ export default function App() {
   }, [send])
 
   const reopen = (s: Sent) => {
-    setMethod(s.method)
-    setUrl(s.url)
+    setDraft((now) => reopenDraft(s.draft, now))
     setCurrent(s)
   }
 
@@ -79,9 +78,9 @@ export default function App() {
         <ul className="history">
           {history.map((s) => (
             <li key={s.id}>
-              <button className={current?.id === s.id ? 'sel' : ''} onClick={() => reopen(s)} title={s.url}>
-                <span className={`m m-${s.method}`}>{s.method}</span>
-                <span className="u">{s.url.replace(/^https?:\/\//, '')}</span>
+              <button className={current?.id === s.id ? 'sel' : ''} onClick={() => reopen(s)} title={s.draft.url}>
+                <span className={`m m-${s.draft.method}`}>{s.draft.method}</span>
+                <span className="u">{s.draft.url.replace(/^https?:\/\//, '')}</span>
                 <span className="meta">
                   {s.at.toTimeString().slice(0, 5)} · {s.res ? `${s.res.status} · ${formatMs(s.res.timing.totalMs)}` : 'failed'}
                 </span>
@@ -94,12 +93,16 @@ export default function App() {
       <main>
         <section>
           <div className="lbl"><span className="num">01</span>Request</div>
-          <RequestBar method={method} url={url} sending={sending} onMethod={setMethod} onUrl={setUrl} onSend={() => void send()} />
-          {history.length === 0 ? (
-            <StartHint onPick={(m, u) => { setMethod(m); setUrl(u) }} />
-          ) : (
-            <p className="quiet small">Headers, body and saved requests come in the next step.</p>
-          )}
+          <RequestBar
+            method={draft.method}
+            url={draft.url}
+            sending={sending}
+            onMethod={(method) => setDraft((d) => ({ ...d, method }))}
+            onUrl={(url) => setDraft((d) => ({ ...d, url }))}
+            onSend={() => void send()}
+          />
+          <RequestEditor draft={draft} onChange={setDraft} />
+          {history.length === 0 && <StartHint onPick={(method, url) => setDraft((d) => ({ ...d, method, url }))} />}
         </section>
         <section>
           <div className="lbl"><span className="num">02</span>Response</div>
