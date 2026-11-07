@@ -4,6 +4,17 @@ A desktop app for testing APIs, both public ones and the ones on your own machin
 
 Open source under the MIT license. Built with Tauri 2 (Rust) and React.
 
+## Security first
+
+Crane is built for teams that cannot send their API keys to someone else's cloud.
+
+- No account, no cloud, no telemetry. The app only talks to the addresses you send requests to.
+- Secrets never go in collection files. Keys and passwords live in the system keyring; files only say `{{token}}`, so collections are safe to keep in git.
+- Crane warns before saving anything that looks like a key or token.
+- Secrets are masked on screen and never written to history.
+- Environments marked as production ask before sending anything that changes data.
+- A locked-down Tauri shell (strict CSP, minimal permissions), signed updates and dependency audits in CI.
+
 ## What works now (step 1)
 
 - Send a request with any method to any address. Leave out `http://` or `https://` and Crane picks: `http://` for `localhost`, `127.*`, `10.*` and `192.168.*`, `https://` for everything else.
@@ -17,9 +28,9 @@ Requests are sent from Rust, not from the webview, so there is no CORS and local
 ## Next steps
 
 1. Headers, query and body editors.
-2. Collections: folders of `.http` files you can keep in git.
-3. Environments and variables (`{{base}}`, `{{token}}`), with secrets kept out of git.
-4. Saved history and a finer timing breakdown (DNS, connect, TLS).
+2. Environments, variables (`{{base}}`, `{{token}}`) and secrets in the system keyring, masked on screen.
+3. Collections: folders of `.http` files you can keep in git, with a secret scan before saving.
+4. Saved history (without secrets) and a finer timing breakdown (DNS, connect, TLS).
 5. Internal APIs: self-signed certificates, your own CA, client certificates, proxies.
 6. Containers: list, start, stop, logs and ports, through the Docker API (Podman speaks it too).
 7. A stack per collection in `crane.toml`: start it, wait for health checks, run the requests.
