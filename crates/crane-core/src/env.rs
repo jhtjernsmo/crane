@@ -10,6 +10,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::network::Network;
 use crate::vars::{find_vars, is_var_name, substitute};
 use crate::{Header, RequestSpec, SendError};
 
@@ -32,6 +33,8 @@ pub struct Environment {
     pub production: bool,
     #[serde(default)]
     pub vars: Vec<Var>,
+    #[serde(default)]
+    pub network: Network,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -116,6 +119,7 @@ impl EnvFile {
                 return bad(format!("There are two environments called \"{}\".", env.name.trim()));
             }
             names.push(name);
+            env.network.validate(env.name.trim(), env.production).map_err(EnvError::Invalid)?;
             let mut var_names: Vec<&str> = Vec::new();
             for v in &env.vars {
                 if !is_var_name(&v.name) {
@@ -186,10 +190,12 @@ impl SecretStore for MemorySecrets {
 pub struct Resolved {
     pub spec: RequestSpec,
     pub secrets: Vec<(String, String)>,
+    /// The environment's network settings, with the proxy's variables filled in.
+    pub network: Network,
 }
 
-fn used_vars(spec: &RequestSpec) -> Vec<String> {
-    let mut texts: Vec<&str> = vec![&spec.url];
+fn used_vars(spec: &RequestSpec, network: &Network) -> Vec<String> {
+    let mut texts: Vec<&str> = vec![&spec.url, &network.proxy];
     for h in &spec.headers {
         texts.push(&h.name);
         texts.push(&h.value);
@@ -208,9 +214,10 @@ fn used_vars(spec: &RequestSpec) -> Vec<String> {
 
 /// Fills in `{{variables}}` from `env`, reading secrets from `store`.
 pub fn resolve(spec: &RequestSpec, env: Option<&Environment>, store: &dyn SecretStore) -> Result<Resolved, SendError> {
-    let names = used_vars(spec);
+    let network = env.map(|e| e.network.clone()).unwrap_or_default();
+    let names = used_vars(spec, &network);
     if names.is_empty() {
-        return Ok(Resolved { spec: spec.clone(), secrets: Vec::new() });
+        return Ok(Resolved { spec: spec.clone(), secrets: Vec::new(), network });
     }
     let Some(env) = env else { return Err(SendError::NoEnvironment(names)) };
 
@@ -246,7 +253,8 @@ pub fn resolve(spec: &RequestSpec, env: Option<&Environment>, store: &dyn Secret
         headers: spec.headers.iter().map(|h| Header { name: fill(&h.name), value: fill(&h.value) }).collect(),
         body: spec.body.as_deref().map(fill),
     };
-    Ok(Resolved { spec, secrets })
+    let network = Network { proxy: fill(&network.proxy), ..network };
+    Ok(Resolved { spec, secrets, network })
 }
 
 #[cfg(test)]
@@ -260,7 +268,7 @@ mod tests {
         Var { name: name.into(), value: String::new(), secret: true }
     }
     fn env(id: &str, name: &str, vars: Vec<Var>) -> Environment {
-        Environment { id: id.into(), name: name.into(), production: false, vars }
+        Environment { id: id.into(), name: name.into(), production: false, vars, network: Network::default() }
     }
     fn spec(url: &str) -> RequestSpec {
         RequestSpec { method: "GET".into(), url: url.into(), headers: vec![], body: None }

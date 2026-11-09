@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import type { EnvFile } from '../api'
+import { type EnvFile, type Network, NO_NETWORK } from '../api'
 import { isSecretName } from '../request'
 import { looksLikeSecret } from '../secretScan'
+import { NetworkFields } from './NetworkFields'
 import type { Environments } from '../useEnvironments'
 import { isVarName } from '../vars'
 
@@ -19,6 +20,7 @@ interface EditEnv {
   name: string
   production: boolean
   vars: EditVar[]
+  network: Network
 }
 
 let nextKey = 1
@@ -93,7 +95,7 @@ function VarRow({ v, stored, typed, onChange, onTyped, onRemove, isBlank }: {
 
 export function EnvEditor({ envs, onClose }: { envs: Environments; onClose: () => void }) {
   const [list, setList] = useState<EditEnv[]>(() =>
-    envs.list.environments.map((e) => ({ ...e, vars: e.vars.map((v) => editVar(v.name, v.value, v.secret, v.name)) })),
+    envs.list.environments.map((e) => ({ ...e, network: e.network ?? NO_NETWORK, vars: e.vars.map((v) => editVar(v.name, v.value, v.secret, v.name)) })),
   )
   const [selected, setSelected] = useState<string | null>(envs.list.active ?? envs.list.environments[0]?.id ?? null)
   const [typed, setTyped] = useState<Record<number, string>>({})
@@ -129,7 +131,7 @@ export function EnvEditor({ envs, onClose }: { envs: Environments; onClose: () =
     const id = newId()
     const taken = new Set(list.map((e) => e.name.toLowerCase()))
     const name = ['Local', 'Test', 'Staging', 'Prod'].find((n) => !taken.has(n.toLowerCase())) ?? `Environment ${list.length + 1}`
-    setList((l) => [...l, { id, name, production: name === 'Prod', vars: [] }])
+    setList((l) => [...l, { id, name, production: name === 'Prod', vars: [], network: NO_NETWORK }])
     setSelected(id)
     setConfirmDelete(false)
   }
@@ -150,6 +152,7 @@ export function EnvEditor({ envs, onClose }: { envs: Environments; onClose: () =
         id: e.id,
         name: e.name.trim(),
         production: e.production,
+        network: e.network,
         vars: kept(e).map((v) => ({ name: v.name.trim(), value: v.secret ? '' : v.value, secret: v.secret })),
       })),
     }
@@ -195,7 +198,7 @@ export function EnvEditor({ envs, onClose }: { envs: Environments; onClose: () =
                   <input value={env.name} onChange={(e) => updateEnv({ name: e.target.value })} aria-label="Environment name" />
                 </label>
                 <label className="check">
-                  <input type="checkbox" checked={env.production} onChange={(e) => updateEnv({ production: e.target.checked })} />
+                  <input type="checkbox" checked={env.production} onChange={(e) => updateEnv({ production: e.target.checked, network: e.target.checked ? { ...env.network, insecure: false } : env.network })} />
                   Production: ask before POST, PUT, PATCH and DELETE
                 </label>
               </div>
@@ -227,6 +230,11 @@ export function EnvEditor({ envs, onClose }: { envs: Environments; onClose: () =
                 Use them as <span className="mono">{'{{name}}'}</span> in the address, headers or body. Secret values go straight to the system keyring: they are never
                 written to a file, never shown again, and hidden if a server sends them back.
               </p>
+              <NetworkFields
+                network={env.network}
+                production={env.production}
+                onChange={(network) => updateEnv({ network })}
+              />
               <div className="row-gap">
                 {confirmDelete ? (
                   <>

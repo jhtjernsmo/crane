@@ -152,6 +152,7 @@ async fn fills_in_variables_and_hides_secrets_the_server_echoes() {
         id: "local".into(),
         name: "Local".into(),
         production: false,
+        network: Default::default(),
         vars: vec![
             Var { name: "base".into(), value: addr, secret: false },
             Var { name: "token".into(), value: String::new(), secret: true },
@@ -161,7 +162,7 @@ async fn fills_in_variables_and_hides_secrets_the_server_echoes() {
     s.headers = vec![Header { name: "Authorization".into(), value: "Bearer {{token}}".into() }];
 
     let resolved = resolve(&s, Some(&env), &store).unwrap();
-    let res = mask_response(send(&resolved.spec, &opts()).await.unwrap(), &resolved.secrets);
+    let res = mask_response(send(&resolved.spec, &SendOptions { network: resolved.network.clone(), ..opts() }).await.unwrap(), &resolved.secrets);
 
     let body = res.body.unwrap();
     assert!(body.starts_with("GET /me?key=‹token hidden› HTTP/1.1"), "{body}");

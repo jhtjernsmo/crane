@@ -236,3 +236,19 @@ table.findings { border-collapse: collapse; width: 100%; font-size: 13px; }
 table.findings td { padding: 6px 8px 6px 0; border-top: 1px solid var(--line); vertical-align: middle; }
 table.findings input { width: 110px; border: 1px solid var(--line); background: var(--panel); padding: 3px 6px; font-size: 12.5px; }
 .review .dialog-foot { align-items: center; }
+
+/* Network settings in the environment editor */
+.net { border-top: 1px solid var(--line); padding-top: 8px; }
+.net-toggle { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 4px 0; }
+.net-toggle svg { transition: transform 0.12s; color: var(--mute); }
+.net-toggle svg.turned { transform: rotate(90deg); }
+.net-body { display: flex; flex-direction: column; gap: 12px; padding: 8px 0 4px 18px; }
+.net-field { display: flex; flex-direction: column; gap: 4px; }
+.file-pick { display: flex; gap: 8px; align-items: center; }
+.file-pick input, .proxy-fields input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--panel); padding: 5px 8px; font: 12.5px 'IBM Plex Mono', monospace; }
+.file-pick .btn-quiet { padding: 4px 10px; font-size: 12.5px; }
+.net .check { display: flex; align-items: center; gap: 8px; font-size: 13px; flex-wrap: wrap; }
+.net .check input { accent-color: var(--bad); }
+.net .seg { align-self: flex-start; }
+.proxy-fields { display: flex; flex-direction: column; gap: 6px; }
+.env-editor { max-height: calc(100vh - 48px); }

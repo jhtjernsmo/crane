@@ -15,7 +15,7 @@ Crane is built for teams that cannot send their API keys to someone else's cloud
 - Environments marked as production ask before sending anything that changes data.
 - A locked-down Tauri shell (strict CSP, minimal permissions), signed updates and dependency audits in CI.
 
-## What works now (steps 1 to 5)
+## What works now (steps 1 to 6)
 
 - Send a request with any method to any address. Leave out `http://` or `https://` and Crane picks: `http://` for `localhost`, `127.*`, `10.*` and `192.168.*`, `https://` for everything else.
 - See the status, time, size, the body (JSON is indented and coloured), the headers, and where the time went: name lookup, connect + TLS, waiting for the server and download. Every send opens a fresh connection, so the numbers are not flattered by a reused one.
@@ -27,6 +27,7 @@ Crane is built for teams that cannot send their API keys to someone else's cloud
 - Environments (Local, Test, Prod, ...) with variables you use as `{{base}}` or `{{token}}` in the address, headers and body. A line under the address shows what each one turns into before you send.
 - Secret variables live in the system keyring (GNOME Keyring or KWallet on Linux, Keychain on macOS, Credential Manager on Windows). The UI can store a value but never read it back: Rust fills secrets in right before sending, and hides them again (`‹token hidden›`) if the server echoes them in the body, headers or address. Plain values are saved in `environments.json` in the app's data folder, readable only by you.
 - Crane warns when a plain variable looks like a key (Stripe, GitHub, Slack, AWS, JWT and other long random strings) and suggests a variable when a token is typed straight into a header.
+- Internal APIs: each environment can trust an extra CA (your company's, or a self-signed server certificate), send a client certificate for mutual TLS, and use the system proxy, no proxy or its own (HTTP, HTTPS or SOCKS5, with a `{{secret}}` for the password). Skipping certificate checks is possible for local development only; production environments refuse it.
 - An environment marked as production asks before POST, PUT, PATCH and DELETE. The check runs in Rust too, so the UI cannot skip it.
 - Collections: open a folder (for example in a git repository) and keep requests there as `.http` files, the same format VS Code REST Client and JetBrains IDEs read. Folders show as a tree; Ctrl+S saves, and Crane asks before it throws away unsaved changes or deletes a file.
 - Before a file is written, Rust scans it for keys, tokens and passwords. If it finds one, nothing is written: you can move it to the keyring as a `{{variable}}` with one click, or save it anyway on purpose.
@@ -38,10 +39,9 @@ Requests are sent from Rust, not from the webview, so there is no CORS and local
 
 ## Next steps
 
-1. Internal APIs: self-signed certificates, your own CA, client certificates, proxies.
-2. Containers with Crane's own runtime (no Docker or Podman needed): pull images from registries, run them rootless in their own namespaces, forward ports, show logs.
-3. A stack per collection in `crane.toml`: start it, wait for health checks, run the requests.
-4. Tests on responses and a CLI that runs a collection in CI.
+1. Containers with Crane's own runtime (no Docker or Podman needed): pull images from registries, run them rootless in their own namespaces, forward ports, show logs.
+2. A stack per collection in `crane.toml`: start it, wait for health checks, run the requests.
+3. Tests on responses and a CLI that runs a collection in CI.
 
 ## Develop
 

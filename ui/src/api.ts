@@ -46,11 +46,26 @@ export interface Var {
   secret: boolean
 }
 
+export interface Network {
+  /** PEM file with CA certificates to trust on top of the system's. */
+  caFile: string
+  /** PEM file with a client certificate and its unencrypted key. */
+  clientCertFile: string
+  /** Skip certificate checks; refused for production environments. */
+  insecure: boolean
+  /** '' = system settings, 'none' = direct, else a proxy URL. */
+  proxy: string
+  noProxy: string
+}
+
+export const NO_NETWORK: Network = { caFile: '', clientCertFile: '', insecure: false, proxy: '', noProxy: '' }
+
 export interface Environment {
   id: string
   name: string
   production: boolean
   vars: Var[]
+  network?: Network
 }
 
 export interface EnvFile {
@@ -206,3 +221,6 @@ export const historyList = () => call<HistoryEntry[]>('history_list', {}, async 
 /** Rust replaces anything that looks like a secret before writing; the stored entry comes back. */
 export const historyAdd = (entry: HistoryEntry) => call<HistoryEntry>('history_add', { entry }, async () => preview.historyAdd(entry))
 export const historyClear = () => call<void>('history_clear', {}, async () => preview.historyClear())
+
+/** Opens the system file picker from Rust; only the chosen path comes back. */
+export const pickCertFile = () => call<string | null>('pick_cert_file', {}, async () => preview.pickCertFile())

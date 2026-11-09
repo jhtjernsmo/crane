@@ -92,6 +92,18 @@ async fn pick_collection(state: State<'_, AppState>) -> Result<Option<Collection
     Ok(Some(shown))
 }
 
+/// Lets the user pick a certificate file; only its path goes back to the UI.
+#[tauri::command]
+async fn pick_cert_file() -> Result<Option<String>, String> {
+    let picked = rfd::AsyncFileDialog::new()
+        .set_title("Pick a PEM certificate file")
+        .add_filter("PEM certificates", &["pem", "crt", "cer", "key"])
+        .add_filter("All files", &["*"])
+        .pick_file()
+        .await;
+    Ok(picked.map(|f| f.path().display().to_string()))
+}
+
 #[tauri::command]
 async fn collection_tree(state: State<'_, AppState>) -> Result<Option<CollectionView>, String> {
     let open = state.collection.lock().expect("collection lock").clone();
@@ -225,7 +237,7 @@ async fn send_request(
     }
     let store = Arc::clone(&state.secrets);
     let resolved = blocking(move || resolve(&spec, env.as_ref(), store.as_ref())).await?.map_err(|e| e.to_string())?;
-    let opts = SendOptions { timeout: REQUEST_TIMEOUT, ..SendOptions::default() };
+    let opts = SendOptions { timeout: REQUEST_TIMEOUT, network: resolved.network.clone(), ..SendOptions::default() };
     match crane_core::send(&resolved.spec, &opts).await {
         Ok(res) => Ok(mask_response(res, &resolved.secrets)),
         Err(e) => Err(mask(&e.to_string(), &resolved.secrets)),
@@ -287,6 +299,7 @@ pub fn run() {
             history_list,
             history_add,
             history_clear,
+            pick_cert_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Crane");

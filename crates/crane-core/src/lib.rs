@@ -6,6 +6,7 @@ pub mod collection;
 pub mod env;
 pub mod history;
 pub mod http_file;
+pub mod network;
 pub mod secret_scan;
 mod send;
 mod url;
@@ -52,8 +53,12 @@ pub enum SendError {
     Refused(String),
     #[error("{0} did not answer within {1} seconds.")]
     TimedOut(String, u64),
-    #[error("The secure connection to {0} failed: {1}")]
+    #[error("The secure connection to {0} failed: {1}. If the server uses your company's CA or a self-signed certificate, add it to the environment under Network.")]
     Tls(String, String),
+    #[error("Could not use the certificate file {0}: {1}.")]
+    BadCertFile(String, String),
+    #[error("The proxy address is not valid. Check it under Environments, Network.")]
+    BadProxy,
     #[error("The request failed: {0}")]
     Other(String),
     #[error("This request uses {}, but no environment is picked. Pick one at the top, or add one under Environments.", list_vars(.0))]

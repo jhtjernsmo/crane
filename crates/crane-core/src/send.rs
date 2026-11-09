@@ -7,6 +7,7 @@ use reqwest::Method;
 use serde::Serialize;
 
 use crate::client::timed_builder;
+use crate::network::Network;
 use crate::vars::mask;
 use crate::{Header, RequestSpec, SendError, normalize_url};
 
@@ -47,18 +48,20 @@ pub struct Response {
 pub struct SendOptions {
     pub timeout: Duration,
     pub user_agent: String,
+    /// Certificates and proxy, from the environment, variables filled in.
+    pub network: Network,
 }
 
 impl Default for SendOptions {
     fn default() -> Self {
-        Self { timeout: Duration::from_secs(30), user_agent: concat!("Crane/", env!("CARGO_PKG_VERSION")).into() }
+        Self { timeout: Duration::from_secs(30), user_agent: concat!("Crane/", env!("CARGO_PKG_VERSION")).into(), network: Network::default() }
     }
 }
 
 pub async fn send(spec: &RequestSpec, opts: &SendOptions) -> Result<Response, SendError> {
     let timeout = opts.timeout;
     let (builder, phases) = timed_builder(&opts.user_agent);
-    let client = builder.build().map_err(|e| SendError::Other(last_cause(&e)))?;
+    let client = opts.network.apply(builder).await?.build().map_err(|e| SendError::Other(last_cause(&e)))?;
     let url = normalize_url(&spec.url)?;
     let parsed = reqwest::Url::parse(&url).map_err(|_| SendError::BadUrl(spec.url.trim().to_string()))?;
     let place = place_of(&parsed);

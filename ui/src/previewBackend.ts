@@ -29,6 +29,8 @@ export function save(next: EnvFile): EnvList {
   if (names.some((n) => !n)) throw 'Every environment needs a name.'
   const twice = names.find((n, i) => names.indexOf(n) !== i)
   if (twice) throw `There are two environments called "${twice}".`
+  const unsafe = next.environments.find((e) => e.production && e.network?.insecure)
+  if (unsafe) throw `${unsafe.name} is a production environment, so it always checks certificates. Add the CA file instead.`
   file = structuredClone({
     ...next,
     environments: next.environments.map((e) => ({ ...e, vars: e.vars.map((v) => (v.secret ? { ...v, value: '' } : v)) })),
@@ -203,3 +205,5 @@ export function historyAdd(entry: HistoryEntry): HistoryEntry {
 export function historyClear() {
   historyEntries = []
 }
+
+export const pickCertFile = () => '/home/you/certs/company-ca.pem'

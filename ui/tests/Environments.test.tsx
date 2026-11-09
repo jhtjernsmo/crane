@@ -153,3 +153,36 @@ describe('environments', () => {
     expect(screen.getByText(/put this value in an environment as a secret/)).toBeTruthy()
   })
 })
+
+describe('network settings', () => {
+  it('stores a CA file, a proxy and refuses skipped checks in production', async () => {
+    preview.reset({ active: 'local', environments: [local] })
+    render(<App />)
+    await screen.findByRole('option', { name: 'Local' })
+    fireEvent.click(screen.getByRole('button', { name: 'Environments' }))
+    const dialog = screen.getByRole('dialog', { name: 'Environments' })
+    fireEvent.click(within(dialog).getByRole('button', { name: /Network/ }))
+    fireEvent.click(within(dialog).getAllByRole('button', { name: 'Browse' })[0])
+    await waitFor(() => expect((within(dialog).getByLabelText('CA certificates') as HTMLInputElement).value).toBe('/home/you/certs/company-ca.pem'))
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Custom' }))
+    fireEvent.change(within(dialog).getByLabelText('Proxy address'), { target: { value: 'http://proxy.corp:3128' } })
+    fireEvent.click(within(dialog).getByLabelText(/Skip certificate checks/))
+    expect(within(dialog).getByText(/Certificates are not checked/)).toBeTruthy()
+
+    // Marking it as production turns the skip off and locks it.
+    fireEvent.click(within(dialog).getByLabelText(/Production: ask before/))
+    const skip = within(dialog).getByLabelText(/Skip certificate checks/) as HTMLInputElement
+    expect(skip.checked).toBe(false)
+    expect(skip.disabled).toBe(true)
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(preview.list().environments[0].network).toEqual({
+      caFile: '/home/you/certs/company-ca.pem',
+      clientCertFile: '',
+      insecure: false,
+      proxy: 'http://proxy.corp:3128',
+      noProxy: '',
+    })
+  })
+})
