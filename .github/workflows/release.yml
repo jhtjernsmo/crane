@@ -23,7 +23,7 @@ jobs:
             os: ubuntu-24.04
             cli: crane-cli
           - name: macOS Apple silicon
-            os: macos-14
+            os: macos-latest
             cli: crane-cli
           - name: Windows x86_64
             os: windows-2022
