@@ -119,6 +119,8 @@ export default function App() {
 
       {view === 'containers' ? (
         <ContainersPage
+          envId={envs.active?.id ?? null}
+          envName={envs.active?.name ?? null}
           onAsk={setAsk}
           onUseAddress={(url) => {
             setDraft((d) => ({ ...d, url }))
@@ -191,7 +193,7 @@ export default function App() {
 }
 
 /** Mounted only while the containers view is open, so status is only polled then. */
-function ContainersPage({ onAsk, onUseAddress }: { onAsk: (a: Ask) => void; onUseAddress: (url: string) => void }) {
+function ContainersPage(props: { onAsk: (a: Ask) => void; onUseAddress: (url: string) => void; envId: string | null; envName: string | null }) {
   const boxes = useBoxes()
-  return <ContainersView boxes={boxes} onAsk={onAsk} onUseAddress={onUseAddress} />
+  return <ContainersView boxes={boxes} {...props} />
 }

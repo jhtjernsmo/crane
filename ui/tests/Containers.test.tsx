@@ -75,3 +75,45 @@ describe('containers', () => {
     await waitFor(() => expect(screen.queryByText('cache')).toBeNull())
   })
 })
+
+describe('stacks', () => {
+  const local = { id: 'local', name: 'Local', production: false, vars: [{ name: 'db_password', value: '', secret: true }] }
+
+  it('starts and stops the open folder’s stack with the picked environment', async () => {
+    preview.reset({ active: 'local', environments: [local] })
+    preview.resetCollection({ 'health.http': { name: 'Health', method: 'GET', url: '/health', headers: [], bodyMode: 'none', body: '' } })
+    preview.resetStack(preview.SAMPLE_STACK_INFO)
+    render(<App />)
+    await screen.findByRole('option', { name: 'Local' })
+    openContainers()
+
+    const panel = await screen.findByLabelText('Stack')
+    expect(within(panel).getByText('Stack · api-tests')).toBeTruthy()
+    expect(within(panel).getByText('after db')).toBeTruthy()
+    expect(within(panel).getByText('Local')).toBeTruthy()
+    fireEvent.click(within(panel).getByRole('button', { name: 'Start stack' }))
+
+    const list = await screen.findByRole('list', { name: 'Containers' })
+    await waitFor(() => expect(within(list).getAllByText('api-tests')).toHaveLength(2))
+    expect(within(list).queryByRole('button', { name: 'Remove' })).toBeNull()
+    fireEvent.click(within(screen.getByLabelText('Stack')).getByRole('button', { name: 'Stop stack' }))
+    await waitFor(() => expect(screen.queryByRole('list', { name: 'Containers' })?.textContent ?? '').not.toContain('api-tests'))
+  })
+
+  it('needs an environment when the stack uses variables', async () => {
+    preview.resetCollection({})
+    preview.resetStack(preview.SAMPLE_STACK_INFO)
+    render(<App />)
+    openContainers()
+    fireEvent.click(within(await screen.findByLabelText('Stack')).getByRole('button', { name: 'Start stack' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('pick an environment first')
+  })
+
+  it('creates a crane.toml to start from', async () => {
+    preview.resetCollection({})
+    render(<App />)
+    openContainers()
+    fireEvent.click(await screen.findByRole('button', { name: 'Create crane.toml in the open folder' }))
+    expect(within(await screen.findByLabelText('Stack')).getByText('postgres:16-alpine')).toBeTruthy()
+  })
+})

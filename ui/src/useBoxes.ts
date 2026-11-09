@@ -3,6 +3,12 @@ import {
   type BoxStatus,
   type PullProgress,
   type RunRequest,
+  type StackInfo,
+  onStackProgress,
+  stackCreate,
+  stackDown,
+  stackInfo,
+  stackUp,
   boxLogs,
   boxPull,
   boxRemove,
@@ -28,6 +34,13 @@ export interface Boxes {
   run: (req: RunRequest) => Promise<boolean>
   stop: (name: string) => Promise<void>
   remove: (name: string) => Promise<void>
+  /** The open folder's crane.toml, if any. */
+  stack: StackInfo | null
+  /** What each service is doing while the stack starts. */
+  starting: Record<string, string> | null
+  stackUp: (envId: string | null) => Promise<void>
+  stackDown: () => Promise<void>
+  createStack: () => Promise<void>
 }
 
 /** Container state, refreshed while the view is open. */
@@ -37,12 +50,17 @@ export function useBoxes(): Boxes {
   const [pulling, setPulling] = useState<Boxes['pulling']>(null)
   const [selected, select] = useState<string | null>(null)
   const [logs, setLogs] = useState('')
+  const [stack, setStack] = useState<StackInfo | null>(null)
+  const [starting, setStarting] = useState<Record<string, string> | null>(null)
   const alive = useRef(true)
 
   const refresh = useCallback(async () => {
     try {
-      const s = await boxStatus()
-      if (alive.current) setStatus(s)
+      const [s, st] = await Promise.all([boxStatus(), stackInfo()])
+      if (alive.current) {
+        setStatus(s)
+        setStack(st)
+      }
     } catch (e) {
       if (alive.current) setProblem((e as Error).message)
     }
@@ -111,5 +129,16 @@ export function useBoxes(): Boxes {
       if (selected === name) select(null)
       await attempt(() => boxRemove(name))
     },
+    stack,
+    starting,
+    stackUp: async (envId) => {
+      setStarting({})
+      const unlisten = await onStackProgress((e) => setStarting((s) => ({ ...(s ?? {}), [e.service]: e.step })))
+      await attempt(() => stackUp(envId))
+      unlisten()
+      setStarting(null)
+    },
+    stackDown: async () => void (await attempt(() => stackDown())),
+    createStack: async () => void (await attempt(() => stackCreate())),
   }
 }

@@ -6,6 +6,8 @@ pub mod image;
 pub mod image_ref;
 pub mod proto;
 pub mod registry;
+#[cfg(target_os = "linux")]
+pub mod stack;
 
 #[cfg(target_os = "linux")]
 pub mod engine;

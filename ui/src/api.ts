@@ -240,6 +240,8 @@ export interface ImageView {
 
 export interface ContainerView {
   name: string
+  /** The stack it belongs to; those start and stop together. */
+  stack: string | null
   image: string
   running: boolean
   exitCode: number | null
@@ -280,4 +282,39 @@ export async function onPullProgress(handler: (p: PullProgress) => void): Promis
   if (!IN_TAURI) return preview.onPullProgress(handler)
   const { listen } = await import('@tauri-apps/api/event')
   return listen<PullProgress>('box-pull', (e) => handler(e.payload))
+}
+
+// ---- Stacks: crane.toml in the open folder ----------------------------------
+
+export interface StackService {
+  name: string
+  image: string
+  ports: string[]
+  volumes: string[]
+  dependsOn: string[]
+}
+
+export interface StackInfo {
+  exists: boolean
+  name: string
+  services: StackService[]
+  problem: string | null
+  running: boolean
+}
+
+export interface StackEvent {
+  service: string
+  step: string
+}
+
+export const stackInfo = () => call<StackInfo>('stack_info', {}, async () => preview.stackInfo())
+export const stackCreate = () => call<void>('stack_create', {}, async () => preview.stackCreate())
+/** Starts every service; `{{variables}}` come from this environment. */
+export const stackUp = (envId: string | null) => call<void>('stack_up', { envId }, async () => preview.stackUp(envId))
+export const stackDown = () => call<void>('stack_down', {}, async () => preview.stackDown())
+
+export async function onStackProgress(handler: (e: StackEvent) => void): Promise<() => void> {
+  if (!IN_TAURI) return preview.onStackProgress(handler)
+  const { listen } = await import('@tauri-apps/api/event')
+  return listen<StackEvent>('stack-progress', (e) => handler(e.payload))
 }

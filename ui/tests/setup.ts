@@ -8,4 +8,5 @@ beforeEach(() => {
   preview.resetCollection(null)
   preview.resetHistory()
   preview.resetBoxes()
+  preview.resetStack()
 })

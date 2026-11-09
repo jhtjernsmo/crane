@@ -32,7 +32,7 @@ const WRITE_METHODS: [&str; 4] = ["POST", "PUT", "PATCH", "DELETE"];
 pub struct AppState {
     envs: Mutex<EnvFile>,
     env_path: PathBuf,
-    secrets: Arc<dyn SecretStore>,
+    pub(crate) secrets: Arc<dyn SecretStore>,
     /// The open folder of `.http` files. File commands only reach inside it.
     collection: Mutex<Option<Collection>>,
     settings_path: PathBuf,
@@ -40,11 +40,11 @@ pub struct AppState {
 }
 
 impl AppState {
-    fn envs(&self) -> EnvFile {
+    pub(crate) fn envs(&self) -> EnvFile {
         self.envs.lock().expect("environments lock").clone()
     }
 
-    fn collection(&self) -> Result<Collection, String> {
+    pub(crate) fn collection(&self) -> Result<Collection, String> {
         self.collection.lock().expect("collection lock").clone().ok_or_else(|| "Open a folder first.".to_string())
     }
 }
@@ -309,6 +309,10 @@ pub fn run() {
             boxes::box_stop,
             boxes::box_remove,
             boxes::box_logs,
+            boxes::stack_info,
+            boxes::stack_create,
+            boxes::stack_up,
+            boxes::stack_down,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Crane");

@@ -15,7 +15,7 @@ Crane is built for teams that cannot send their API keys to someone else's cloud
 - Environments marked as production ask before sending anything that changes data.
 - A locked-down Tauri shell (strict CSP, minimal permissions), signed updates and dependency audits in CI.
 
-## What works now (steps 1 to 7)
+## What works now (steps 1 to 8)
 
 - Send a request with any method to any address. Leave out `http://` or `https://` and Crane picks: `http://` for `localhost`, `127.*`, `10.*` and `192.168.*`, `https://` for everything else.
 - See the status, time, size, the body (JSON is indented and coloured), the headers, and where the time went: name lookup, connect + TLS, waiting for the server and download. Every send opens a fresh connection, so the numbers are not flattered by a reused one.
@@ -33,6 +33,7 @@ Crane is built for teams that cannot send their API keys to someone else's cloud
 - Before a file is written, Rust scans it for keys, tokens and passwords. If it finds one, nothing is written: you can move it to the keyring as a `{{variable}}` with one click, or save it anyway on purpose.
 - File commands only reach inside the folder you opened. Paths with `..`, absolute paths and symlinks that lead out are refused, and the folder picker is opened by Rust, so the UI has no file access of its own.
 - Containers with Crane's own engine, no Docker or Podman needed (Linux for now). Pull images straight from Docker Hub, GHCR or any OCI registry (checked against their sha256 digests), run them, open their ports on 127.0.0.1, read their logs, stop and remove them. Click a port to use it as a request address.
+- Stacks: a `crane.toml` next to your requests lists the services they need. Start stack pulls what is missing, starts the services in the order of `depends_on`, waits for each one's ready check (a port, an HTTP path or a line in the log), opens their ports and shows their logs. If one fails, everything is stopped again and you see its last log lines.
 - History that is kept between runs (500 sends). Only the request and a summary of the answer (status, time, size) are saved, never the answer itself, and Rust replaces anything that looks like a secret before writing. Clear it any time. Click one to bring the request and its answer back.
 - Light, dark or follow the system.
 
@@ -40,8 +41,29 @@ Requests are sent from Rust, not from the webview, so there is no CORS and local
 
 ## Next steps
 
-1. A stack per collection in `crane.toml`: start it, wait for health checks, run the requests.
-2. Tests on responses and a CLI that runs a collection in CI.
+1. Tests on responses and a CLI that runs a collection in CI.
+
+## crane.toml
+
+```toml
+[[service]]
+name = "db"
+image = "postgres:16-alpine"
+env = { POSTGRES_PASSWORD = "{{db_password}}" }   # from the active environment; secrets from the keyring
+ports = ["5432:5432"]                              # this computer : container, on 127.0.0.1
+volumes = ["./data/db:/var/lib/postgresql/data"]   # must stay inside this folder
+ready = { port = 5432 }
+
+[[service]]
+name = "api"
+image = "ghcr.io/your-org/api:latest"
+env = { DATABASE_URL = "postgres://postgres:{{db_password}}@db:5432/postgres" }
+ports = ["8080:8080"]
+depends_on = ["db"]
+ready = { http = "/health", port = 8080, timeout = 90 }
+```
+
+All services share one network, so `api` reaches the database as `db:5432`. Volumes can only point inside the collection's folder: a `crane.toml` from a repository you cloned cannot hand your other files to a container. Secrets are filled in when the stack starts and live only in the containers' environment, never in the file.
 
 ## How the container engine works
 

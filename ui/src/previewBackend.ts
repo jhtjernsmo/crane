@@ -1,7 +1,7 @@
 // Stand-in for the Rust side when the UI runs in a plain browser (npm run dev)
 // or in tests. Everything lives in memory and is gone on reload; the real app
 // keeps plain values in a file and secrets in the system keyring.
-import type { BoxStatus, CollectionView, EnvFile, EnvList, Finding, HistoryEntry, ImageView, PortMap, PullProgress, ReadRequest, RunRequest, RequestSpec, Response, SaveResult, SavedRequest, TreeNode } from './api'
+import type { BoxStatus, CollectionView, StackEvent, StackInfo, EnvFile, EnvList, Finding, HistoryEntry, ImageView, PortMap, PullProgress, ReadRequest, RunRequest, RequestSpec, Response, SaveResult, SavedRequest, TreeNode } from './api'
 import { looksLikeSecret } from './secretScan'
 import { fillVars, findVars, listVars } from './vars'
 
@@ -214,6 +214,7 @@ export const pickCertFile = () => '/home/you/certs/company-ca.pem'
 
 interface FakeBox {
   name: string
+  stack: string | null
   image: string
   running: boolean
   exitCode: number | null
@@ -260,7 +261,7 @@ export function boxRun(req: RunRequest) {
   const taken = boxes.flatMap((b) => b.ports.map((p) => p.host))
   const clash = req.ports.find((p) => taken.includes(p.host))
   if (clash) throw `Port ${clash.host} on this computer is taken or not allowed. Pick another in the ports list.`
-  boxes = [...boxes, { name: req.name, image: req.image, running: true, exitCode: null, ports: req.ports }]
+  boxes = [...boxes, { name: req.name, stack: null, image: req.image, running: true, exitCode: null, ports: req.ports }]
 }
 
 export function boxStop(name: string) {
@@ -268,7 +269,69 @@ export function boxStop(name: string) {
 }
 
 export function boxRemove(name: string) {
+  if (boxes.some((b) => b.name === name && b.stack)) throw `${name} belongs to the stack. Stop the stack to remove it.`
   boxes = boxes.filter((b) => b.name !== name)
 }
 
 export const boxLogs = (name: string) => `${name} is a pretend container in the browser preview.\nready to accept connections\n`
+
+// ---- Stacks -------------------------------------------------------------------
+
+const SAMPLE_STACK: StackInfo = {
+  exists: true,
+  name: 'api-tests',
+  problem: null,
+  running: false,
+  services: [
+    { name: 'db', image: 'postgres:16-alpine', ports: ['5432:5432'], volumes: ['./data/db:/var/lib/postgresql/data'], dependsOn: [] },
+    { name: 'api', image: 'traefik/whoami:v1.10', ports: ['8080:80'], volumes: [], dependsOn: ['db'] },
+  ],
+}
+
+let stack: StackInfo | null = null
+let stackListeners: ((e: StackEvent) => void)[] = []
+
+export function resetStack(start: StackInfo | null = null) {
+  stack = start ? structuredClone(start) : null
+}
+
+export function stackInfo(): StackInfo {
+  if (!files) return { exists: false, name: '', services: [], problem: null, running: false }
+  return structuredClone(stack ?? { exists: false, name: '', services: [], problem: null, running: false })
+}
+
+export function stackCreate() {
+  if (!files) throw 'Open a folder first.'
+  if (stack) throw 'This folder already has a crane.toml.'
+  stack = structuredClone({ ...SAMPLE_STACK, services: SAMPLE_STACK.services.slice(0, 1) })
+}
+
+export function onStackProgress(handler: (e: StackEvent) => void) {
+  stackListeners.push(handler)
+  return () => {
+    stackListeners = stackListeners.filter((h) => h !== handler)
+  }
+}
+
+export function stackUp(envId: string | null) {
+  if (!stack) throw 'Open a folder with a crane.toml first.'
+  if (stack.problem) throw stack.problem
+  if (stack.running) throw 'The stack is already running.'
+  const env = file.environments.find((e) => e.id === envId)
+  if (!env) throw 'crane.toml uses {{variables}}; pick an environment first.'
+  for (const s of stack.services) {
+    for (const step of ['Starting', 'Waiting until it is ready', 'Ready']) stackListeners.forEach((h) => h({ service: s.name, step }))
+    boxes = [
+      ...boxes,
+      { name: s.name, stack: stack.name, image: s.image, running: true, exitCode: null, ports: s.ports.map((p) => ({ host: Number(p.split(':')[0]), container: Number(p.split(':')[1]) })) },
+    ]
+  }
+  stack.running = true
+}
+
+export function stackDown() {
+  boxes = boxes.filter((b) => b.stack === null)
+  if (stack) stack.running = false
+}
+
+export const SAMPLE_STACK_INFO = SAMPLE_STACK

@@ -95,6 +95,52 @@ function RunForm({ boxes, image, onDone }: { boxes: Boxes; image: ImageView; onD
   )
 }
 
+function StackPanel({ boxes, envName, envId }: { boxes: Boxes; envName: string | null; envId: string | null }) {
+  const st = boxes.stack
+  if (!st) return null
+  if (!st.exists) {
+    return (
+      <div className="stack-panel quiet-panel">
+        <p className="small quiet">
+          A collection can describe the services it needs in a <span className="mono">crane.toml</span>, and Crane starts them together. Open a folder under Saved first.
+        </p>
+        <button type="button" className="link" onClick={() => void boxes.createStack()}>Create crane.toml in the open folder</button>
+      </div>
+    )
+  }
+  const starting = boxes.starting
+  return (
+    <div className="stack-panel" aria-label="Stack">
+      <div className="row-gap">
+        <h3 className="lbl">Stack · {st.name}</h3>
+        <span className="small quiet">from crane.toml</span>
+        <span className="push" />
+        {st.running ? (
+          <button type="button" className="btn-quiet" onClick={() => void boxes.stackDown()}>Stop stack</button>
+        ) : (
+          <button type="button" className="btn-main small-btn" disabled={starting !== null || st.problem !== null} onClick={() => void boxes.stackUp(envId)}>
+            {starting ? 'Starting…' : 'Start stack'}
+          </button>
+        )}
+      </div>
+      {st.problem && <p className="problem small">{st.problem}</p>}
+      <table className="stack-services">
+        <tbody>
+          {st.services.map((s) => (
+            <tr key={s.name}>
+              <td className="mono">{s.name}</td>
+              <td className="mono quiet">{s.image}</td>
+              <td className="mono small">{s.ports.join(', ')}</td>
+              <td className="small quiet">{starting?.[s.name] ?? (s.dependsOn.length ? `after ${s.dependsOn.join(', ')}` : '')}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {!st.running && <p className="small quiet">Variables in its env come from {envName ? <b>{envName}</b> : 'the environment you pick at the top'}.</p>}
+    </div>
+  )
+}
+
 function Logs({ text }: { text: string }) {
   const box = useRef<HTMLPreElement>(null)
   useEffect(() => {
@@ -103,7 +149,13 @@ function Logs({ text }: { text: string }) {
   return <pre className="code logs" ref={box} aria-label="Container log">{text || 'Nothing written yet.'}</pre>
 }
 
-export function ContainersView({ boxes, onUseAddress, onAsk }: { boxes: Boxes; onUseAddress: (url: string) => void; onAsk: (a: Ask) => void }) {
+export function ContainersView({ boxes, onUseAddress, onAsk, envId, envName }: {
+  boxes: Boxes
+  onUseAddress: (url: string) => void
+  onAsk: (a: Ask) => void
+  envId: string | null
+  envName: string | null
+}) {
   const [running, setRunning] = useState<ImageView | null>(null)
   const s = boxes.status
   if (s && !s.available) {
@@ -147,17 +199,19 @@ export function ContainersView({ boxes, onUseAddress, onAsk }: { boxes: Boxes; o
         <section>
           <div className="lbl"><span className="num">03</span>Containers</div>
           {boxes.problem && <p className="problem small" role="alert">{boxes.problem}</p>}
+          {!running && <StackPanel boxes={boxes} envId={envId} envName={envName} />}
           {running ? (
             <RunForm key={running.name} boxes={boxes} image={running} onDone={() => setRunning(null)} />
           ) : (
             <>
-              {s?.containers.length === 0 && <p className="quiet">No containers yet. Pick an image on the left to run it.</p>}
+              {s?.containers.length === 0 && <p className="quiet small">No containers running. Start the stack, or pick an image on the left to run one on its own.</p>}
               <ul className="boxes" aria-label="Containers">
                 {s?.containers.map((c) => (
                   <li key={c.name} className={boxes.selected === c.name ? 'sel' : ''}>
                     <button type="button" className="box-main" onClick={() => boxes.select(c.name)}>
                       <span className={`dot ${c.running ? 'on' : 'off'}`} aria-hidden="true" />
                       <span className="box-name">{c.name}</span>
+                      {c.stack && <span className="stack-tag">{c.stack}</span>}
                       <span className="quiet mono small">{c.image}</span>
                       <span className="small quiet push">{c.running ? 'running' : `stopped${c.exitCode !== null ? ` (${c.exitCode})` : ''}`}</span>
                     </button>
@@ -169,13 +223,13 @@ export function ContainersView({ boxes, onUseAddress, onAsk }: { boxes: Boxes; o
                       ))}
                       <span className="push" />
                       {c.running && <button type="button" className="link" onClick={() => void boxes.stop(c.name)}>Stop</button>}
-                      <button
+                      {!c.stack && <button
                         type="button"
                         className="link danger"
                         onClick={() => onAsk({ title: `Remove ${c.name}?`, text: 'The container stops and its files are deleted. Its log is kept.', yes: 'Remove', danger: true, onYes: () => void boxes.remove(c.name) })}
                       >
                         Remove
-                      </button>
+                      </button>}
                     </div>
                   </li>
                 ))}

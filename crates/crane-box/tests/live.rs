@@ -155,3 +155,76 @@ async fn runs_postgres_which_switches_user() {
     pod.shutdown().await.unwrap();
     e.clean_pod("pg").await.unwrap();
 }
+
+#[tokio::test]
+#[ignore]
+async fn starts_a_stack_from_crane_toml() {
+    use crane_box::stack::StackFile;
+    use crane_box::stack::run::{down, up};
+
+    let dir = tempfile::tempdir().unwrap();
+    let e = engine(&dir);
+    let folder = dir.path().join("api-tests");
+    std::fs::create_dir_all(&folder).unwrap();
+    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    let toml = format!(
+        r#"
+[[service]]
+name = "web"
+image = "traefik/whoami:v1.10"
+ports = ["{port}:80"]
+ready = {{ http = "/health", port = 80 }}
+
+[[service]]
+name = "probe"
+image = "alpine:3.20"
+depends_on = ["web"]
+env = {{ GREETING = "hi {{{{who}}}}" }}
+volumes = ["./shared:/shared"]
+command = ["sh", "-c", "echo $GREETING; wget -qO- http://web/ | grep Hostname; echo done > /shared/out.txt; sleep 300"]
+ready = {{ log = "Hostname: web" }}
+"#
+    );
+    let stack = StackFile::parse(&toml).unwrap();
+    let fill = |v: &str| Ok(v.replace("{{who}}", "crane"));
+    let events = std::sync::Mutex::new(Vec::new());
+    let running = up(&e, &stack, &folder, &fill, &|ev| events.lock().unwrap().push(format!("{} {}", ev.service, ev.step))).await.unwrap();
+    assert_eq!(running.services.iter().map(|s| s.name.as_str()).collect::<Vec<_>>(), ["web", "probe"]);
+
+    let log = e.log_tail("api-tests", "probe", 4096);
+    assert!(log.contains("hi crane"), "{log}");
+    assert!(log.contains("Hostname: web"), "{log}");
+    assert_eq!(std::fs::read_to_string(folder.join("shared/out.txt")).unwrap().trim(), "done");
+    let body = reqwest::get(format!("http://127.0.0.1:{port}/")).await.unwrap().text().await.unwrap();
+    assert!(body.contains("Hostname: web"), "{body}");
+    assert!(events.lock().unwrap().iter().any(|e| e == "probe Ready"));
+
+    down(&e, running).await.unwrap();
+    assert!(reqwest::get(format!("http://127.0.0.1:{port}/")).await.is_err(), "the port is closed after down");
+}
+
+#[tokio::test]
+#[ignore]
+async fn a_failing_service_takes_the_stack_down_with_its_log() {
+    use crane_box::stack::StackFile;
+    use crane_box::stack::run::up;
+
+    let dir = tempfile::tempdir().unwrap();
+    let e = engine(&dir);
+    let folder = dir.path().join("broken");
+    std::fs::create_dir_all(&folder).unwrap();
+    let stack = StackFile::parse(
+        r#"
+[[service]]
+name = "bad"
+image = "alpine:3.20"
+command = ["sh", "-c", "echo missing config file; exit 3"]
+ready = { port = 9 }
+"#,
+    )
+    .unwrap();
+    let err = up(&e, &stack, &folder, &|v| Ok(v.to_string()), &|_| {}).await.err().expect("the stack should fail");
+    let msg = err.to_string();
+    assert!(msg.contains("bad stopped (exit code 3)"), "{msg}");
+    assert!(msg.contains("missing config file"), "{msg}");
+}
