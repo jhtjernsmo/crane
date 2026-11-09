@@ -3,9 +3,10 @@
 
 use std::time::{Duration, Instant};
 
-use reqwest::{Client, Method};
+use reqwest::Method;
 use serde::Serialize;
 
+use crate::client::timed_builder;
 use crate::vars::mask;
 use crate::{Header, RequestSpec, SendError, normalize_url};
 
@@ -15,7 +16,11 @@ pub const MAX_SHOWN_BYTES: usize = 2 * 1024 * 1024;
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Timing {
-    /// From sending until the status line and headers arrived.
+    /// Looking up the server's address. 0 for IP addresses.
+    pub dns_ms: u64,
+    /// Opening the connection, TCP and TLS together, after the lookup.
+    pub connect_ms: u64,
+    /// From the connection being ready until the status line and headers arrived.
     pub waiting_ms: u64,
     /// From the headers until the last byte of the body.
     pub download_ms: u64,
@@ -37,7 +42,23 @@ pub struct Response {
     pub timing: Timing,
 }
 
-pub async fn send(client: &Client, spec: &RequestSpec, timeout: Duration) -> Result<Response, SendError> {
+/// How to send: the same for every request in a session.
+#[derive(Debug, Clone)]
+pub struct SendOptions {
+    pub timeout: Duration,
+    pub user_agent: String,
+}
+
+impl Default for SendOptions {
+    fn default() -> Self {
+        Self { timeout: Duration::from_secs(30), user_agent: concat!("Crane/", env!("CARGO_PKG_VERSION")).into() }
+    }
+}
+
+pub async fn send(spec: &RequestSpec, opts: &SendOptions) -> Result<Response, SendError> {
+    let timeout = opts.timeout;
+    let (builder, phases) = timed_builder(&opts.user_agent);
+    let client = builder.build().map_err(|e| SendError::Other(last_cause(&e)))?;
     let url = normalize_url(&spec.url)?;
     let parsed = reqwest::Url::parse(&url).map_err(|_| SendError::BadUrl(spec.url.trim().to_string()))?;
     let place = place_of(&parsed);
@@ -68,6 +89,7 @@ pub async fn send(client: &Client, spec: &RequestSpec, timeout: Duration) -> Res
     let bytes = res.bytes().await.map_err(|e| explain(&e, &place, timeout))?;
     let done = Instant::now();
 
+    let p = phases.lock().map(|p| *p).unwrap_or_default();
     let size = bytes.len();
     let truncated = size > MAX_SHOWN_BYTES;
     let shown = &bytes[..size.min(MAX_SHOWN_BYTES)];
@@ -87,7 +109,9 @@ pub async fn send(client: &Client, spec: &RequestSpec, timeout: Duration) -> Res
         truncated,
         size,
         timing: Timing {
-            waiting_ms: ms(headers_at - started),
+            dns_ms: ms(p.dns),
+            connect_ms: ms(p.connect_total.saturating_sub(p.dns)),
+            waiting_ms: ms((headers_at - started).saturating_sub(p.connect_total)),
             download_ms: ms(done - headers_at),
             total_ms: ms(done - started),
         },

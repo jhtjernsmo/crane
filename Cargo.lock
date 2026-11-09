@@ -703,7 +703,6 @@ version = "0.1.0"
 dependencies = [
  "crane-core",
  "keyring",
- "reqwest",
  "rfd",
  "serde",
  "serde_json",
@@ -722,6 +721,8 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "tower-layer",
+ "tower-service",
 ]
 
 [[package]]

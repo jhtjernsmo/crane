@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from '../src/App'
 import * as preview from '../src/previewBackend'
 
@@ -33,7 +33,6 @@ const local = {
 }
 const prod = { id: 'prod', name: 'Prod', production: true, vars: [{ name: 'base', value: 'api.example.com', secret: false }] }
 
-beforeEach(() => preview.reset())
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()

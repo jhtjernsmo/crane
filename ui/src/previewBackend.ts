@@ -1,7 +1,7 @@
 // Stand-in for the Rust side when the UI runs in a plain browser (npm run dev)
 // or in tests. Everything lives in memory and is gone on reload; the real app
 // keeps plain values in a file and secrets in the system keyring.
-import type { CollectionView, EnvFile, EnvList, Finding, ReadRequest, RequestSpec, Response, SaveResult, SavedRequest, TreeNode } from './api'
+import type { CollectionView, EnvFile, EnvList, Finding, HistoryEntry, ReadRequest, RequestSpec, Response, SaveResult, SavedRequest, TreeNode } from './api'
 import { looksLikeSecret } from './secretScan'
 import { fillVars, findVars, listVars } from './vars'
 
@@ -186,4 +186,20 @@ export function createFolder(parent: string, name: string): string {
 
 export function deleteRequest(path: string) {
   need().delete(path)
+}
+
+// ---- History ---------------------------------------------------------------
+
+let historyEntries: HistoryEntry[] = []
+
+export function resetHistory(start: HistoryEntry[] = []) {
+  historyEntries = structuredClone(start)
+}
+export const historyList = () => structuredClone(historyEntries)
+export function historyAdd(entry: HistoryEntry): HistoryEntry {
+  historyEntries.push(structuredClone(entry))
+  return entry
+}
+export function historyClear() {
+  historyEntries = []
 }

@@ -92,9 +92,15 @@ section + section { border-left: 1px solid var(--line); }
 .tone-server { color: var(--bad); }
 .ruler { border: 1px solid var(--line); background: var(--panel); padding: 10px 12px; }
 .bar { display: flex; height: 10px; margin: 8px 0 6px; background: var(--line); }
-.bar .wait { background: var(--wait); }
-.bar .down { background: var(--accent); }
-.ticks { display: flex; justify-content: space-between; font: 10.5px 'IBM Plex Mono', monospace; color: var(--mute); }
+.bar b, .ticks i { background: var(--line); }
+.bar .dns, .ticks .dns { background: var(--blue); }
+.bar .conn, .ticks .conn { background: var(--key); }
+.bar .wait, .ticks .wait { background: var(--wait); }
+.bar .down, .ticks .down { background: var(--accent); }
+.ticks { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 16px; font: 10.5px 'IBM Plex Mono', monospace; color: var(--mute); }
+.ticks li { display: flex; align-items: center; gap: 6px; }
+.ticks i { width: 8px; height: 8px; display: inline-block; }
+.clear-history { align-self: flex-start; margin-top: 4px; }
 
 .tabs { display: flex; gap: 20px; align-items: center; border-bottom: 1px solid var(--line); }
 .tabs button { padding: 6px 0; font-size: 13px; color: var(--mute); }

@@ -11,7 +11,7 @@ const ok: api.Response = {
   body: '{}',
   truncated: false,
   size: 2,
-  timing: { waitingMs: 1, downloadMs: 1, totalMs: 2 },
+  timing: { dnsMs: 0, connectMs: 0, waitingMs: 1, downloadMs: 1, totalMs: 2 },
 }
 
 afterEach(() => {

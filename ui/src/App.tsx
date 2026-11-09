@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { type Response, sendRequest } from './api'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { sendRequest } from './api'
 import { type Ask, AskDialog } from './components/AskDialog'
 import { CollectionTree } from './components/CollectionTree'
 import { ConfirmSend } from './components/ConfirmSend'
 import { EnvEditor } from './components/EnvEditor'
 import { EnvPicker } from './components/EnvPicker'
+import { HistoryList } from './components/HistoryList'
 import { FileBar } from './components/FileBar'
 import { Logo } from './components/Logo'
 import { RequestBar } from './components/RequestBar'
@@ -13,35 +14,22 @@ import { ResponsePane } from './components/ResponsePane'
 import { SecretReview } from './components/SecretReview'
 import { StartHint } from './components/StartHint'
 import { VarLine } from './components/VarLine'
-import { formatMs } from './format'
-import { type Draft, buildSpec, emptyDraft, forHistory, reopenDraft } from './request'
+import { type Draft, buildSpec, emptyDraft, reopenDraft } from './request'
 import { THEMES, type Theme, applyTheme, loadTheme } from './theme'
 import { useCollection } from './useCollection'
 import { useEnvironments } from './useEnvironments'
+import { type Sent, useHistory } from './useHistory'
 import { findVars } from './vars'
 
-/** One send this session, with secret values already removed. Saved collections come in a later step. */
-interface Sent {
-  id: number
-  at: Date
-  draft: Draft
-  /** The environment it went to, if any. */
-  envName: string | null
-  res?: Response
-  error?: string
-}
-
-const HISTORY_LIMIT = 50
 /** Methods that change data, so a production environment asks first. */
 const WRITE_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE']
 
 export default function App() {
   const [draft, setDraft] = useState<Draft>(emptyDraft)
   const [sending, setSending] = useState(false)
-  const [current, setCurrent] = useState<Sent | null>(null)
-  const [history, setHistory] = useState<Sent[]>([])
+  const history = useHistory()
+  const current = history.current
   const [theme, setTheme] = useState<Theme>(loadTheme)
-  const nextId = useRef(1)
   const envs = useEnvironments()
   const [editingEnvs, setEditingEnvs] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -68,17 +56,13 @@ export default function App() {
     }
     setConfirming(false)
     setSending(true)
-    const base = { id: nextId.current++, at: new Date(), draft: forHistory({ ...draft, url: draft.url.trim() }), envName: env?.name ?? null }
-    let sent: Sent
     try {
-      sent = { ...base, res: await sendRequest(spec, env?.id ?? null, confirmed) }
+      history.record(draft, env?.name ?? null, { res: await sendRequest(spec, env?.id ?? null, confirmed) })
     } catch (e) {
-      sent = { ...base, error: e instanceof Error ? e.message : String(e) }
+      history.record(draft, env?.name ?? null, { error: e instanceof Error ? e.message : String(e) })
     }
-    setCurrent(sent)
-    setHistory((h) => [sent, ...h].slice(0, HISTORY_LIMIT))
     setSending(false)
-  }, [draft, spec, sending, envs.active])
+  }, [draft, spec, sending, envs.active, history])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -111,7 +95,7 @@ export default function App() {
 
   const reopen = (s: Sent) => {
     setDraft((now) => reopenDraft(s.draft, now))
-    setCurrent(s)
+    history.setCurrent(s)
   }
 
   return (
@@ -133,20 +117,13 @@ export default function App() {
         </div>
         {side === 'requests' && <CollectionTree col={col} onOpen={openFile} onDelete={askDelete} />}
         {side === 'requests' && col.problem && !col.review && <p className="problem small side-problem" role="alert">{col.problem}</p>}
-        {side === 'history' && history.length === 0 && <p className="quiet small pad">What you send shows up here.</p>}
-        {side === 'history' && <ul className="history">
-          {history.map((s) => (
-            <li key={s.id}>
-              <button className={current?.id === s.id ? 'sel' : ''} onClick={() => reopen(s)} title={s.draft.url}>
-                <span className={`m m-${s.draft.method}`}>{s.draft.method}</span>
-                <span className="u">{s.draft.url.replace(/^https?:\/\//, '')}</span>
-                <span className="meta">
-                  {s.at.toTimeString().slice(0, 5)}{s.envName && ` · ${s.envName}`} · {s.res ? `${s.res.status} · ${formatMs(s.res.timing.totalMs)}` : 'failed'}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>}
+        {side === 'history' && (
+          <HistoryList
+            history={history}
+            onReopen={reopen}
+            onClear={() => setAsk({ title: 'Clear the history?', text: 'Every saved send is removed from this computer.', yes: 'Clear', danger: true, onYes: () => void history.clear() })}
+          />
+        )}
       </aside>
 
       <main>
@@ -164,7 +141,7 @@ export default function App() {
           <VarLine names={varNames} envs={envs} onEdit={() => setEditingEnvs(true)} />
           {envs.problem && <p className="problem small" role="alert">{envs.problem}</p>}
           <RequestEditor draft={draft} onChange={setDraft} />
-          {history.length === 0 && <StartHint onPick={(method, url) => setDraft((d) => ({ ...d, method, url }))} />}
+          {history.items.length === 0 && <StartHint onPick={(method, url) => setDraft((d) => ({ ...d, method, url }))} />}
         </section>
         <section>
           <div className="lbl"><span className="num">02</span>Response</div>
@@ -175,6 +152,12 @@ export default function App() {
             </div>
           )}
           {!sending && current?.res && <ResponsePane key={current.id} res={current.res} />}
+          {!sending && current && !current.res && !current.error && current.summary && (
+            <p className="help">
+              This was sent in an earlier session{current.summary.status ? ` and answered ${current.summary.status}` : ''}. Crane keeps only a summary, never the
+              answer itself. Send it again to see the answer.
+            </p>
+          )}
           {!sending && !current && <p className="quiet">The answer shows up here.</p>}
         </section>
       </main>

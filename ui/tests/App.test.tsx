@@ -11,7 +11,7 @@ const ok: api.Response = {
   body: '{"id":"ord_7f3k2","status":"pending"}',
   truncated: false,
   size: 412,
-  timing: { waitingMs: 60, downloadMs: 24, totalMs: 84 },
+  timing: { dnsMs: 12, connectMs: 30, waitingMs: 18, downloadMs: 24, totalMs: 84 },
 }
 
 afterEach(() => {

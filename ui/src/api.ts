@@ -19,6 +19,10 @@ export interface RequestSpec {
 }
 
 export interface Timing {
+  /** Looking up the address; 0 for IP addresses and in the browser preview. */
+  dnsMs: number
+  /** TCP and TLS, after the lookup. */
+  connectMs: number
   waitingMs: number
   downloadMs: number
   totalMs: number
@@ -117,6 +121,8 @@ async function sendFromBrowser({ spec, secrets }: { spec: RequestSpec; secrets: 
     truncated: false,
     size: buf.length,
     timing: {
+      dnsMs: 0,
+      connectMs: 0,
       waitingMs: Math.round(headersAt - started),
       downloadMs: Math.round(done - headersAt),
       totalMs: Math.round(done - started),
@@ -181,3 +187,22 @@ export const saveRequest = (path: string, request: SavedRequest, allowSecrets = 
 export const newRequestPath = (folder: string, name: string) => call<string>('new_request_path', { folder, name }, async () => preview.newRequestPath(folder, name))
 export const createFolder = (parent: string, name: string) => call<string>('create_folder', { parent, name }, async () => preview.createFolder(parent, name))
 export const deleteRequest = (path: string) => call<void>('delete_request', { path }, async () => preview.deleteRequest(path))
+
+// ---- History -------------------------------------------------------------
+
+/** What is kept of a send between runs: never the body of the answer. */
+export interface HistoryEntry {
+  at: number
+  envName: string | null
+  request: SavedRequest
+  status: number | null
+  totalMs: number | null
+  size: number | null
+  error: string | null
+}
+
+/** Oldest first. */
+export const historyList = () => call<HistoryEntry[]>('history_list', {}, async () => preview.historyList())
+/** Rust replaces anything that looks like a secret before writing; the stored entry comes back. */
+export const historyAdd = (entry: HistoryEntry) => call<HistoryEntry>('history_add', { entry }, async () => preview.historyAdd(entry))
+export const historyClear = () => call<void>('history_clear', {}, async () => preview.historyClear())

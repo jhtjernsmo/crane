@@ -5,7 +5,7 @@ use std::net::TcpListener;
 use std::thread;
 use std::time::Duration;
 
-use crane_core::{Header, RequestSpec, SendError, send};
+use crane_core::{Header, RequestSpec, SendError, SendOptions, send};
 
 const TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -48,6 +48,10 @@ fn http(status: &str, content_type: &str, body: &[u8]) -> Vec<u8> {
     out
 }
 
+fn opts() -> SendOptions {
+    SendOptions { timeout: TIMEOUT, ..SendOptions::default() }
+}
+
 fn spec(method: &str, url: &str) -> RequestSpec {
     RequestSpec { method: method.into(), url: url.into(), headers: vec![], body: None }
 }
@@ -62,7 +66,7 @@ async fn sends_method_headers_and_body_and_reads_the_answer() {
     ];
     s.body = Some(r#"{"qty":2}"#.into());
 
-    let res = send(&reqwest::Client::new(), &s, TIMEOUT).await.unwrap();
+    let res = send(&s, &opts()).await.unwrap();
 
     assert_eq!(res.status, 201);
     assert_eq!(res.status_text, "Created");
@@ -79,7 +83,7 @@ async fn sends_method_headers_and_body_and_reads_the_answer() {
 #[tokio::test]
 async fn binary_bodies_have_no_text() {
     let addr = serve_once(|_| http("200 OK", "image/png", &[0x89, b'P', b'N', b'G', 0xff, 0xfe]));
-    let res = send(&reqwest::Client::new(), &spec("GET", &addr), TIMEOUT).await.unwrap();
+    let res = send(&spec("GET", &addr), &opts()).await.unwrap();
     assert_eq!(res.body, None);
     assert_eq!(res.size, 6);
 }
@@ -88,7 +92,7 @@ async fn binary_bodies_have_no_text() {
 async fn very_big_bodies_are_cut_but_measured() {
     let big = vec![b'a'; crane_core::MAX_SHOWN_BYTES + 10];
     let addr = serve_once(move |_| http("200 OK", "text/plain", &big));
-    let res = send(&reqwest::Client::new(), &spec("GET", &addr), TIMEOUT).await.unwrap();
+    let res = send(&spec("GET", &addr), &opts()).await.unwrap();
     assert!(res.truncated);
     assert_eq!(res.size, crane_core::MAX_SHOWN_BYTES + 10);
     assert_eq!(res.body.unwrap().len(), crane_core::MAX_SHOWN_BYTES);
@@ -97,7 +101,7 @@ async fn very_big_bodies_are_cut_but_measured() {
 #[tokio::test]
 async fn says_when_nothing_is_listening() {
     let port = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
-    let err = send(&reqwest::Client::new(), &spec("GET", &format!("localhost:{port}")), TIMEOUT).await.unwrap_err();
+    let err = send(&spec("GET", &format!("localhost:{port}")), &opts()).await.unwrap_err();
     assert_eq!(err, SendError::Refused(format!("localhost:{port}")));
     assert!(err.to_string().contains("Is the server running"));
 }
@@ -110,24 +114,23 @@ async fn says_when_the_server_is_too_slow() {
         let _held = listener.accept().unwrap();
         thread::sleep(Duration::from_secs(3));
     });
-    let err = send(&reqwest::Client::new(), &spec("GET", &addr.to_string()), Duration::from_secs(1)).await.unwrap_err();
+    let err = send(&spec("GET", &addr.to_string()), &SendOptions { timeout: Duration::from_secs(1), ..opts() }).await.unwrap_err();
     assert_eq!(err, SendError::TimedOut(addr.to_string(), 1));
 }
 
 #[tokio::test]
 async fn says_when_the_host_does_not_exist() {
-    let err = send(&reqwest::Client::new(), &spec("GET", "https://no-such-host.invalid/"), TIMEOUT).await.unwrap_err();
+    let err = send(&spec("GET", "https://no-such-host.invalid/"), &opts()).await.unwrap_err();
     assert_eq!(err, SendError::HostNotFound("no-such-host.invalid".into()));
 }
 
 #[tokio::test]
 async fn refuses_bad_methods_and_headers_before_sending() {
-    let client = reqwest::Client::new();
-    let err = send(&client, &spec("GE T", "localhost:1"), TIMEOUT).await.unwrap_err();
+    let err = send(&spec("GE T", "localhost:1"), &opts()).await.unwrap_err();
     assert_eq!(err, SendError::BadMethod("GE T".into()));
     let mut s = spec("GET", "localhost:1");
     s.headers = vec![Header { name: "Bad Name".into(), value: "x".into() }];
-    assert_eq!(send(&client, &s, TIMEOUT).await.unwrap_err(), SendError::BadHeader("Bad Name".into()));
+    assert_eq!(send(&s, &opts()).await.unwrap_err(), SendError::BadHeader("Bad Name".into()));
 }
 
 #[tokio::test]
@@ -158,7 +161,7 @@ async fn fills_in_variables_and_hides_secrets_the_server_echoes() {
     s.headers = vec![Header { name: "Authorization".into(), value: "Bearer {{token}}".into() }];
 
     let resolved = resolve(&s, Some(&env), &store).unwrap();
-    let res = mask_response(send(&reqwest::Client::new(), &resolved.spec, TIMEOUT).await.unwrap(), &resolved.secrets);
+    let res = mask_response(send(&resolved.spec, &opts()).await.unwrap(), &resolved.secrets);
 
     let body = res.body.unwrap();
     assert!(body.starts_with("GET /me?key=‹token hidden› HTTP/1.1"), "{body}");
@@ -167,4 +170,19 @@ async fn fills_in_variables_and_hides_secrets_the_server_echoes() {
     assert!(!res.url.contains("tk_live"), "{}", res.url);
     let echo = res.headers.iter().find(|h| h.name == "x-echo").unwrap();
     assert_eq!(echo.value, "‹token hidden›");
+}
+
+#[tokio::test]
+async fn splits_the_time_into_lookup_connect_waiting_and_download() {
+    let addr = serve_once(|_| {
+        thread::sleep(Duration::from_millis(120));
+        http("200 OK", "text/plain", b"slow")
+    });
+    let port = addr.rsplit(':').next().unwrap();
+    let res = send(&spec("GET", &format!("localhost:{port}")), &opts()).await.unwrap();
+    let t = res.timing;
+    assert!(t.waiting_ms >= 100, "{t:?}");
+    assert!(t.connect_ms < 100, "{t:?}");
+    assert!(t.dns_ms < 1000, "{t:?}");
+    assert!(t.total_ms >= t.dns_ms + t.connect_ms + t.waiting_ms, "{t:?}");
 }

@@ -3,19 +3,33 @@ import type { Response } from '../api'
 import { formatBytes, formatMs, headerValue, statusTone } from '../format'
 import { BodyView } from './BodyView'
 
-function TimingRuler({ waitingMs, downloadMs, totalMs }: Response['timing']) {
-  const total = Math.max(totalMs, 1)
+const PHASES = [
+  { key: 'dnsMs', label: 'lookup', cls: 'dns' },
+  { key: 'connectMs', label: 'connect + TLS', cls: 'conn' },
+  { key: 'waitingMs', label: 'waiting for the server', cls: 'wait' },
+  { key: 'downloadMs', label: 'download', cls: 'down' },
+] as const
+
+/** Where the time went. A fresh connection is opened for every send, so lookup and connect are always measured. */
+function TimingRuler(timing: Response['timing']) {
+  const total = Math.max(timing.totalMs, 1)
+  const shown = PHASES.filter((p) => p.key === 'waitingMs' || p.key === 'downloadMs' || timing[p.key] > 0)
   return (
     <div className="ruler">
       <div className="lbl">Timing</div>
-      <div className="bar">
-        <b className="wait" style={{ width: `${(waitingMs / total) * 100}%` }} />
-        <b className="down" style={{ width: `${(downloadMs / total) * 100}%` }} />
+      <div className="bar" aria-hidden="true">
+        {shown.map((p) => (
+          <b key={p.key} className={p.cls} style={{ width: `${(timing[p.key] / total) * 100}%` }} />
+        ))}
       </div>
-      <div className="ticks">
-        <span>waiting for the server {formatMs(waitingMs)}</span>
-        <span>download {formatMs(downloadMs)}</span>
-      </div>
+      <ul className="ticks" aria-label="Timing">
+        {shown.map((p) => (
+          <li key={p.key}>
+            <i className={p.cls} aria-hidden="true" />
+            {p.label} {formatMs(timing[p.key])}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

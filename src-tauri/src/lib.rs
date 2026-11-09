@@ -13,9 +13,10 @@ use std::time::Duration;
 
 use crane_core::collection::{Collection, Node, SaveResult};
 use crane_core::env::{EnvFile, Environment, SecretStore, resolve};
+use crane_core::history::{self, HistoryEntry};
 use crane_core::http_file::{ReadRequest, SavedRequest};
 use crane_core::vars::mask;
-use crane_core::{RequestSpec, Response, mask_response};
+use crane_core::{RequestSpec, Response, SendOptions, mask_response};
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
 
@@ -23,18 +24,18 @@ use tauri::{Manager, State};
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const ENV_FILE: &str = "environments.json";
 const SETTINGS_FILE: &str = "settings.json";
+const HISTORY_FILE: &str = "history.jsonl";
 /// Methods that change data, so they need a yes first in a production environment.
 const WRITE_METHODS: [&str; 4] = ["POST", "PUT", "PATCH", "DELETE"];
 
 pub struct AppState {
-    /// One client for the whole app, so connections are reused between sends.
-    client: reqwest::Client,
     envs: Mutex<EnvFile>,
     env_path: PathBuf,
     secrets: Arc<dyn SecretStore>,
     /// The open folder of `.http` files. File commands only reach inside it.
     collection: Mutex<Option<Collection>>,
     settings_path: PathBuf,
+    history_path: PathBuf,
 }
 
 impl AppState {
@@ -224,34 +225,49 @@ async fn send_request(
     }
     let store = Arc::clone(&state.secrets);
     let resolved = blocking(move || resolve(&spec, env.as_ref(), store.as_ref())).await?.map_err(|e| e.to_string())?;
-    match crane_core::send(&state.client, &resolved.spec, REQUEST_TIMEOUT).await {
+    let opts = SendOptions { timeout: REQUEST_TIMEOUT, ..SendOptions::default() };
+    match crane_core::send(&resolved.spec, &opts).await {
         Ok(res) => Ok(mask_response(res, &resolved.secrets)),
         Err(e) => Err(mask(&e.to_string(), &resolved.secrets)),
     }
 }
 
+/// Newest last. Bodies of answers are never kept.
+#[tauri::command]
+async fn history_list(state: State<'_, AppState>) -> Result<Vec<HistoryEntry>, String> {
+    Ok(history::load(&state.history_path))
+}
+
+/// Returns the entry as written, after secrets were replaced.
+#[tauri::command]
+async fn history_add(state: State<'_, AppState>, entry: HistoryEntry) -> Result<HistoryEntry, String> {
+    history::append(&state.history_path, entry)
+}
+
+#[tauri::command]
+async fn history_clear(state: State<'_, AppState>) -> Result<(), String> {
+    history::clear(&state.history_path)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let client = reqwest::Client::builder()
-        .user_agent(concat!("Crane/", env!("CARGO_PKG_VERSION")))
-        .build()
-        .expect("the HTTP client could not start");
     tauri::Builder::default()
-        .setup(move |app| {
+        .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             let env_path = data_dir.join(ENV_FILE);
             let settings_path = data_dir.join(SETTINGS_FILE);
+            let history_path = data_dir.join(HISTORY_FILE);
             // The last folder comes back if it still exists; if not, start without one.
             let collection = load_settings(&settings_path).collection.and_then(|p| Collection::open(&p).ok());
             // A damaged file is reported and left alone, never overwritten with nothing.
             let envs = EnvFile::load(&env_path).map_err(|e| e.to_string())?;
             app.manage(AppState {
-                client,
                 envs: Mutex::new(envs),
                 env_path,
                 secrets: Arc::new(secrets::KeyringSecrets),
                 collection: Mutex::new(collection),
                 settings_path,
+                history_path,
             });
             Ok(())
         })
@@ -268,6 +284,9 @@ pub fn run() {
             new_request_path,
             create_folder,
             delete_request,
+            history_list,
+            history_add,
+            history_clear,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Crane");
