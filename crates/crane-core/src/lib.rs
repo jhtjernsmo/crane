@@ -1,7 +1,10 @@
 //! Crane's request engine. The Tauri shell only passes a [`RequestSpec`] in and
 //! a [`Response`] (or a [`SendError`] with a message for people) back out.
 
+pub mod collection;
 pub mod env;
+pub mod http_file;
+pub mod secret_scan;
 mod send;
 mod url;
 pub mod vars;

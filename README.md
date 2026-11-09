@@ -15,7 +15,7 @@ Crane is built for teams that cannot send their API keys to someone else's cloud
 - Environments marked as production ask before sending anything that changes data.
 - A locked-down Tauri shell (strict CSP, minimal permissions), signed updates and dependency audits in CI.
 
-## What works now (steps 1 to 3)
+## What works now (steps 1 to 4)
 
 - Send a request with any method to any address. Leave out `http://` or `https://` and Crane picks: `http://` for `localhost`, `127.*`, `10.*` and `192.168.*`, `https://` for everything else.
 - See the status, time, size, a timing bar (waiting for the server vs. download), the body (JSON is indented and coloured) and the headers.
@@ -28,6 +28,9 @@ Crane is built for teams that cannot send their API keys to someone else's cloud
 - Secret variables live in the system keyring (GNOME Keyring or KWallet on Linux, Keychain on macOS, Credential Manager on Windows). The UI can store a value but never read it back: Rust fills secrets in right before sending, and hides them again (`‹token hidden›`) if the server echoes them in the body, headers or address. Plain values are saved in `environments.json` in the app's data folder, readable only by you.
 - Crane warns when a plain variable looks like a key (Stripe, GitHub, Slack, AWS, JWT and other long random strings) and suggests a variable when a token is typed straight into a header.
 - An environment marked as production asks before POST, PUT, PATCH and DELETE. The check runs in Rust too, so the UI cannot skip it.
+- Collections: open a folder (for example in a git repository) and keep requests there as `.http` files, the same format VS Code REST Client and JetBrains IDEs read. Folders show as a tree; Ctrl+S saves, and Crane asks before it throws away unsaved changes or deletes a file.
+- Before a file is written, Rust scans it for keys, tokens and passwords. If it finds one, nothing is written: you can move it to the keyring as a `{{variable}}` with one click, or save it anyway on purpose.
+- File commands only reach inside the folder you opened. Paths with `..`, absolute paths and symlinks that lead out are refused, and the folder picker is opened by Rust, so the UI has no file access of its own.
 - History of what you sent this session. Click one to bring the request and its answer back.
 - Light, dark or follow the system.
 
@@ -35,12 +38,11 @@ Requests are sent from Rust, not from the webview, so there is no CORS and local
 
 ## Next steps
 
-1. Collections: folders of `.http` files you can keep in git, with a secret scan before saving.
-2. Saved history (without secrets) and a finer timing breakdown (DNS, connect, TLS).
-3. Internal APIs: self-signed certificates, your own CA, client certificates, proxies.
-4. Containers: list, start, stop, logs and ports, through the Docker API (Podman speaks it too).
-5. A stack per collection in `crane.toml`: start it, wait for health checks, run the requests.
-6. Tests on responses and a CLI that runs a collection in CI.
+1. Saved history (without secrets) and a finer timing breakdown (DNS, connect, TLS).
+2. Internal APIs: self-signed certificates, your own CA, client certificates, proxies.
+3. Containers: list, start, stop, logs and ports, through the Docker API (Podman speaks it too).
+4. A stack per collection in `crane.toml`: start it, wait for health checks, run the requests.
+5. Tests on responses and a CLI that runs a collection in CI.
 
 ## Develop
 
@@ -63,6 +65,7 @@ npx --prefix ui tauri dev
 ## Layout
 
 - `crates/crane-core`: the request engine. Sends, measures and explains errors. No Tauri in here, so it is tested on its own against a small local server.
+- `crates/crane-core/src/collection.rs`, `http_file.rs` and `secret_scan.rs`: folders of `.http` files, reading and writing them, and the secret check before saving.
 - `crates/crane-core/src/env.rs` and `vars.rs`: environments, `{{variables}}` and hiding secrets in responses.
 - `src-tauri`: the app shell. Commands to send, list and save environments, and store a secret; `secrets.rs` talks to the system keyring.
 - `ui`: the React interface.

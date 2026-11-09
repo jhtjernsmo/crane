@@ -11,15 +11,18 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use crane_core::collection::{Collection, Node, SaveResult};
 use crane_core::env::{EnvFile, Environment, SecretStore, resolve};
+use crane_core::http_file::{ReadRequest, SavedRequest};
 use crane_core::vars::mask;
 use crane_core::{RequestSpec, Response, mask_response};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
 
 /// How long a request may take before Crane gives up on it.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const ENV_FILE: &str = "environments.json";
+const SETTINGS_FILE: &str = "settings.json";
 /// Methods that change data, so they need a yes first in a production environment.
 const WRITE_METHODS: [&str; 4] = ["POST", "PUT", "PATCH", "DELETE"];
 
@@ -29,12 +32,102 @@ pub struct AppState {
     envs: Mutex<EnvFile>,
     env_path: PathBuf,
     secrets: Arc<dyn SecretStore>,
+    /// The open folder of `.http` files. File commands only reach inside it.
+    collection: Mutex<Option<Collection>>,
+    settings_path: PathBuf,
 }
 
 impl AppState {
     fn envs(&self) -> EnvFile {
         self.envs.lock().expect("environments lock").clone()
     }
+
+    fn collection(&self) -> Result<Collection, String> {
+        self.collection.lock().expect("collection lock").clone().ok_or_else(|| "Open a folder first.".to_string())
+    }
+}
+
+/// Small things to remember between runs. Never secrets.
+#[derive(Default, Deserialize, Serialize)]
+struct Settings {
+    collection: Option<PathBuf>,
+}
+
+fn load_settings(path: &std::path::Path) -> Settings {
+    std::fs::read_to_string(path).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+}
+
+fn save_settings(path: &std::path::Path, settings: &Settings) -> Result<(), String> {
+    let text = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(path, text + "\n").map_err(|e| e.to_string())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CollectionView {
+    name: String,
+    root: String,
+    tree: Vec<Node>,
+}
+
+fn view(c: &Collection) -> Result<CollectionView, String> {
+    Ok(CollectionView { name: c.name(), root: c.root().display().to_string(), tree: c.tree().map_err(|e| e.to_string())? })
+}
+
+/// Opens the system folder picker from Rust, so the UI never gets a general
+/// file dialog or file system access of its own.
+#[tauri::command]
+async fn pick_collection(state: State<'_, AppState>) -> Result<Option<CollectionView>, String> {
+    let Some(folder) = rfd::AsyncFileDialog::new().set_title("Open a folder for your requests").pick_folder().await else {
+        return Ok(None);
+    };
+    let c = Collection::open(folder.path()).map_err(|e| e.to_string())?;
+    save_settings(&state.settings_path, &Settings { collection: Some(c.root().to_path_buf()) })?;
+    let shown = view(&c)?;
+    *state.collection.lock().expect("collection lock") = Some(c);
+    Ok(Some(shown))
+}
+
+#[tauri::command]
+async fn collection_tree(state: State<'_, AppState>) -> Result<Option<CollectionView>, String> {
+    let open = state.collection.lock().expect("collection lock").clone();
+    open.as_ref().map(view).transpose()
+}
+
+#[tauri::command]
+async fn close_collection(state: State<'_, AppState>) -> Result<(), String> {
+    *state.collection.lock().expect("collection lock") = None;
+    save_settings(&state.settings_path, &Settings::default())
+}
+
+#[tauri::command]
+async fn read_request(state: State<'_, AppState>, path: String) -> Result<ReadRequest, String> {
+    state.collection()?.read(&path).map_err(|e| e.to_string())
+}
+
+/// Refuses to write literal secrets unless `allow_secrets` is set; the
+/// findings go back to the UI so it can offer to move them to the keyring.
+#[tauri::command]
+async fn save_request(state: State<'_, AppState>, path: String, request: SavedRequest, allow_secrets: bool) -> Result<SaveResult, String> {
+    state.collection()?.save(&path, &request, allow_secrets).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn new_request_path(state: State<'_, AppState>, folder: String, name: String) -> Result<String, String> {
+    state.collection()?.new_path(&folder, &name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn create_folder(state: State<'_, AppState>, parent: String, name: String) -> Result<String, String> {
+    state.collection()?.create_folder(&parent, &name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn delete_request(state: State<'_, AppState>, path: String) -> Result<(), String> {
+    state.collection()?.delete(&path).map_err(|e| e.to_string())
 }
 
 /// What the UI gets: the environments, which secrets have a value, and why
@@ -145,13 +238,37 @@ pub fn run() {
         .expect("the HTTP client could not start");
     tauri::Builder::default()
         .setup(move |app| {
-            let env_path = app.path().app_data_dir()?.join(ENV_FILE);
+            let data_dir = app.path().app_data_dir()?;
+            let env_path = data_dir.join(ENV_FILE);
+            let settings_path = data_dir.join(SETTINGS_FILE);
+            // The last folder comes back if it still exists; if not, start without one.
+            let collection = load_settings(&settings_path).collection.and_then(|p| Collection::open(&p).ok());
             // A damaged file is reported and left alone, never overwritten with nothing.
             let envs = EnvFile::load(&env_path).map_err(|e| e.to_string())?;
-            app.manage(AppState { client, envs: Mutex::new(envs), env_path, secrets: Arc::new(secrets::KeyringSecrets) });
+            app.manage(AppState {
+                client,
+                envs: Mutex::new(envs),
+                env_path,
+                secrets: Arc::new(secrets::KeyringSecrets),
+                collection: Mutex::new(collection),
+                settings_path,
+            });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![send_request, list_environments, save_environments, set_secret])
+        .invoke_handler(tauri::generate_handler![
+            send_request,
+            list_environments,
+            save_environments,
+            set_secret,
+            pick_collection,
+            collection_tree,
+            close_collection,
+            read_request,
+            save_request,
+            new_request_path,
+            create_folder,
+            delete_request,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Crane");
 }

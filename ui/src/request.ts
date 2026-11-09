@@ -1,6 +1,6 @@
 // The request being edited, and the plain functions that turn it into what the
 // Rust side sends. Kept free of React so every rule here has a test.
-import type { Header, RequestSpec } from './api'
+import type { Finding, Header, RequestSpec, SavedRequest } from './api'
 
 import { findVars } from './vars'
 
@@ -146,4 +146,46 @@ export function reopenDraft(old: Draft, now: Draft): Draft {
       return match ? { ...r, value: match.value } : { ...r }
     })
   return { ...old, headers: refill(old.headers, now.headers), form: refill(old.form, now.form) }
+}
+
+// ---- Files --------------------------------------------------------------
+
+/** What goes into a .http file. Switched-off form rows are not kept. */
+export function toSaved(d: Draft, name: string): SavedRequest {
+  return {
+    name,
+    method: d.method,
+    url: d.url.trim(),
+    headers: d.headers.filter((h) => h.name.trim()).map((h) => ({ name: h.name.trim(), value: h.value, enabled: h.on })),
+    bodyMode: d.bodyMode,
+    body: d.bodyMode === 'form' ? (bodyOf(d) ?? '') : d.bodyMode === 'none' ? '' : d.body,
+  }
+}
+
+export function fromSaved(s: SavedRequest): Draft {
+  const mode = (BODY_MODES as readonly string[]).includes(s.bodyMode) ? (s.bodyMode as BodyMode) : 'text'
+  return {
+    method: s.method,
+    url: s.url,
+    headers: s.headers.map((h) => ({ ...row(h.name, h.value), on: h.enabled })),
+    bodyMode: mode,
+    body: mode === 'form' ? '' : s.body,
+    form: mode === 'form' ? [...new URLSearchParams(s.body)].map(([k, v]) => row(k, v)) : [],
+  }
+}
+
+/** True when saving `d` would write the same file as `saved`. */
+export const sameAsSaved = (d: Draft, saved: SavedRequest) => JSON.stringify(toSaved(d, saved.name)) === JSON.stringify(saved)
+
+/** Puts `{{name}}` where a found secret was, so the file only points at the keyring. */
+export function moveToVariable(d: Draft, f: Finding, name: string): Draft {
+  const swap = (text: string) => text.split(f.value).join(`{{${name}}}`)
+  const inHeader = (h: Row) => f.header === null || h.name.trim().toLowerCase() === f.header.toLowerCase()
+  return {
+    ...d,
+    url: f.header === null ? swap(d.url) : d.url,
+    headers: d.headers.map((h) => (inHeader(h) ? { ...h, value: swap(h.value) } : h)),
+    body: f.header === null ? swap(d.body) : d.body,
+    form: f.header === null ? d.form.map((r) => ({ ...r, value: swap(r.value) })) : d.form,
+  }
 }

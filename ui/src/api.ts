@@ -123,3 +123,61 @@ async function sendFromBrowser({ spec, secrets }: { spec: RequestSpec; secrets: 
     },
   })
 }
+
+// ---- Collections: folders of .http files ---------------------------------
+
+export interface SavedHeader {
+  name: string
+  value: string
+  enabled: boolean
+}
+
+export interface SavedRequest {
+  name: string
+  method: string
+  url: string
+  headers: SavedHeader[]
+  bodyMode: string
+  body: string
+}
+
+export interface ReadRequest {
+  request: SavedRequest
+  /** Why Crane will not write the file back, if it will not. */
+  readOnly: string | null
+}
+
+export type TreeNode =
+  | { kind: 'folder'; name: string; path: string; children: TreeNode[] }
+  | { kind: 'request'; name: string; path: string; method: string }
+
+export interface CollectionView {
+  name: string
+  root: string
+  tree: TreeNode[]
+}
+
+export interface Finding {
+  place: string
+  header: string | null
+  value: string
+  suggestedName: string
+  preview: string
+}
+
+export interface SaveResult {
+  saved: string | null
+  findings: Finding[]
+}
+
+/** Opens the system folder picker from Rust. `null` when cancelled. */
+export const pickCollection = () => call<CollectionView | null>('pick_collection', {}, async () => preview.pickCollection())
+export const collectionTree = () => call<CollectionView | null>('collection_tree', {}, async () => preview.collectionTree())
+export const closeCollection = () => call<void>('close_collection', {}, async () => preview.closeCollection())
+export const readRequest = (path: string) => call<ReadRequest>('read_request', { path }, async () => preview.readRequest(path))
+/** Rust refuses literal secrets unless `allowSecrets`; the findings come back instead. */
+export const saveRequest = (path: string, request: SavedRequest, allowSecrets = false) =>
+  call<SaveResult>('save_request', { path, request, allowSecrets }, async () => preview.saveRequest(path, request, allowSecrets))
+export const newRequestPath = (folder: string, name: string) => call<string>('new_request_path', { folder, name }, async () => preview.newRequestPath(folder, name))
+export const createFolder = (parent: string, name: string) => call<string>('create_folder', { parent, name }, async () => preview.createFolder(parent, name))
+export const deleteRequest = (path: string) => call<void>('delete_request', { path }, async () => preview.deleteRequest(path))

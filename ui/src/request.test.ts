@@ -4,6 +4,10 @@ import {
   autoContentType,
   buildSpec,
   emptyDraft,
+  fromSaved,
+  moveToVariable,
+  sameAsSaved,
+  toSaved,
   forHistory,
   isSecretName,
   parseQuery,
@@ -125,5 +129,40 @@ describe('history', () => {
     const back = reopenDraft(old, now)
     expect(back.url).toBe('x.dev/old')
     expect(back.headers.map((h) => [h.name, h.value])).toEqual([['Authorization', 'Bearer new'], ['Accept', 'json']])
+  })
+})
+
+describe('files', () => {
+  it('round-trips a draft through the saved form', () => {
+    const d = draft({
+      method: 'POST',
+      url: '{{base}}/orders',
+      headers: [row('Accept', 'json'), { ...row('X-Debug', '1'), on: false }],
+      bodyMode: 'json',
+      body: '{"qty":2}',
+    })
+    const saved = toSaved(d, 'Create order')
+    expect(saved.headers).toEqual([
+      { name: 'Accept', value: 'json', enabled: true },
+      { name: 'X-Debug', value: '1', enabled: false },
+    ])
+    const back = fromSaved(saved)
+    expect(sameAsSaved(back, saved)).toBe(true)
+    expect(sameAsSaved({ ...back, url: 'x' }, saved)).toBe(false)
+  })
+
+  it('stores form rows as an encoded body and reads them back', () => {
+    const saved = toSaved(draft({ bodyMode: 'form', form: [row('user', 'ada l'), { ...row('skip', '1'), on: false }] }), 'Login')
+    expect(saved.body).toBe('user=ada+l')
+    expect(fromSaved(saved).form.map((r) => [r.name, r.value])).toEqual([['user', 'ada l']])
+  })
+
+  it('moves a found secret into a variable', () => {
+    const d = draft({ url: 'x.dev?key=abc123', headers: [row('Authorization', 'Bearer abc123'), row('X-Other', 'abc123')] })
+    const header = moveToVariable(d, { place: 'header Authorization', header: 'Authorization', value: 'abc123', suggestedName: 'token', preview: '' }, 'token')
+    expect(header.headers.map((h) => h.value)).toEqual(['Bearer {{token}}', 'abc123'])
+    expect(header.url).toBe('x.dev?key=abc123')
+    const url = moveToVariable(d, { place: 'address (key)', header: null, value: 'abc123', suggestedName: 'key', preview: '' }, 'key')
+    expect(url.url).toBe('x.dev?key={{key}}')
   })
 })

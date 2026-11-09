@@ -1,7 +1,8 @@
 // Stand-in for the Rust side when the UI runs in a plain browser (npm run dev)
 // or in tests. Everything lives in memory and is gone on reload; the real app
 // keeps plain values in a file and secrets in the system keyring.
-import type { EnvFile, EnvList, RequestSpec, Response } from './api'
+import type { CollectionView, EnvFile, EnvList, Finding, ReadRequest, RequestSpec, Response, SaveResult, SavedRequest, TreeNode } from './api'
+import { looksLikeSecret } from './secretScan'
 import { fillVars, findVars, listVars } from './vars'
 
 const WRITE_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE']
@@ -81,4 +82,108 @@ export function mask(used: [string, string][], res: Response): Response {
       .reduce((t, [name, v]) => t.split(v).join(`‹${name} hidden›`).split(encodeURIComponent(v)).join(`‹${name} hidden›`), text)
   if (used.length === 0) return res
   return { ...res, url: hide(res.url), headers: res.headers.map((h) => ({ ...h, value: hide(h.value) })), body: res.body === null ? null : hide(res.body) }
+}
+
+// ---- Collections ----------------------------------------------------------
+// A pretend folder with two requests. The real app reads and writes .http
+// files in the folder you pick, and its secret check runs in Rust.
+
+const SAMPLE: Record<string, SavedRequest> = {
+  'users/get-me.http': {
+    name: 'Get me',
+    method: 'GET',
+    url: '{{base}}/headers',
+    headers: [{ name: 'Accept', value: 'application/json', enabled: true }],
+    bodyMode: 'none',
+    body: '',
+  },
+  'orders/create-order.http': {
+    name: 'Create order',
+    method: 'POST',
+    url: '{{base}}/anything/orders',
+    headers: [{ name: 'Accept', value: 'application/json', enabled: true }],
+    bodyMode: 'json',
+    body: '{\n  "item": "crane-001",\n  "qty": 2\n}',
+  },
+}
+
+let files: Map<string, SavedRequest> | null = null
+let folders = new Set<string>()
+
+export function resetCollection(start: Record<string, SavedRequest> | null = null) {
+  files = start ? new Map(Object.entries(structuredClone(start))) : null
+  folders = new Set([...(files?.keys() ?? [])].filter((p) => p.includes('/')).map((p) => p.slice(0, p.lastIndexOf('/'))))
+}
+
+function treeOf(prefix: string): TreeNode[] {
+  const all = files ?? new Map<string, SavedRequest>()
+  const here = (p: string) => p.startsWith(prefix) && !p.slice(prefix.length).includes('/')
+  const subfolders = [...folders].filter(here).sort()
+  const requests = [...all.keys()].filter(here).sort()
+  return [
+    ...subfolders.map((f) => ({ kind: 'folder' as const, name: f.slice(prefix.length), path: f, children: treeOf(`${f}/`) })),
+    ...requests.map((p) => ({ kind: 'request' as const, name: all.get(p)!.name, path: p, method: all.get(p)!.method })),
+  ]
+}
+
+const view = (): CollectionView | null => (files ? { name: 'api-tests', root: '~/code/api-tests', tree: treeOf('') } : null)
+
+export function pickCollection(): CollectionView | null {
+  if (!files) resetCollection(SAMPLE)
+  return view()
+}
+export const collectionTree = view
+export function closeCollection() {
+  files = null
+}
+
+function need(): Map<string, SavedRequest> {
+  if (!files) throw 'Open a folder first.'
+  return files
+}
+
+export function readRequest(path: string): ReadRequest {
+  const r = need().get(path)
+  if (!r) throw `"${path}" does not exist.`
+  return { request: structuredClone(r), readOnly: null }
+}
+
+const SECRET_HEADER = /^(authorization|proxy-authorization|cookie)$|token|secret|passw(or)?d|api[-_]?key|session|credential|private/i
+
+export function saveRequest(path: string, request: SavedRequest, allowSecrets: boolean): SaveResult {
+  const all = need()
+  if (path.split('/').some((p) => p === '..' || p === '') || !path.endsWith('.http')) throw `"${path}" is not a path inside the collection.`
+  if (!allowSecrets) {
+    const findings: Finding[] = []
+    for (const h of request.headers) {
+      const value = h.value.trim().replace(/^(bearer|basic|token|digest)\s+/i, '')
+      if (value && !findVars(h.value).length && (SECRET_HEADER.test(h.name.trim()) || looksLikeSecret(h.value))) {
+        const suggestedName = /^(proxy-)?authorization$/i.test(h.name.trim()) ? 'token' : h.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_')
+        findings.push({ place: `header ${h.name.trim()}`, header: h.name.trim(), value, suggestedName, preview: `${value.slice(0, 4)}… (${value.length} characters)` })
+      }
+    }
+    if (findings.length) return { saved: null, findings }
+  }
+  all.set(path, structuredClone(request))
+  return { saved: path, findings: [] }
+}
+
+export function newRequestPath(folder: string, name: string): string {
+  const all = need()
+  const slug = name.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'request'
+  const at = (n: number) => `${folder ? `${folder}/` : ''}${slug}${n > 1 ? `-${n}` : ''}.http`
+  let n = 1
+  while (all.has(at(n))) n++
+  return at(n)
+}
+
+export function createFolder(parent: string, name: string): string {
+  need()
+  const path = parent ? `${parent}/${name.trim()}` : name.trim()
+  folders.add(path)
+  return path
+}
+
+export function deleteRequest(path: string) {
+  need().delete(path)
 }
