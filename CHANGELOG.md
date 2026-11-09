@@ -6,7 +6,6 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 The first published version. (0.1.0 was tagged but never published: its macOS build failed.)
 
-
 ### Requests
 - Send any method to any address, with query, headers and JSON, text or form bodies.
 - Timing split into name lookup, connect + TLS, waiting and download.
