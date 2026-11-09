@@ -747,7 +747,7 @@ dependencies = [
 
 [[package]]
 name = "crane"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "crane-box",
  "crane-core",
@@ -761,7 +761,7 @@ dependencies = [
 
 [[package]]
 name = "crane-box"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "flate2",
  "nix",
@@ -778,7 +778,7 @@ dependencies = [
 
 [[package]]
 name = "crane-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "crane-box",
  "crane-core",
@@ -789,7 +789,7 @@ dependencies = [
 
 [[package]]
 name = "crane-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "keyring",
  "rcgen",
