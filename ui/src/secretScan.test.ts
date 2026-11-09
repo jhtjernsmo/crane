@@ -4,6 +4,7 @@ import { looksLikeSecret } from './secretScan'
 describe('looksLikeSecret', () => {
   it('spots well-known key formats', () => {
     for (const v of [
+      // Built at run time, so secret scanners do not mistake the test for a leak.
       ['sk', 'live', '51HxYz2eZvKYlo2C8w9a7b6c'].join('_'),
       'gh' + 'p_1234567890abcdefghijABCDEFGHIJ123456',
       ['xoxb', '123456789012', '1234567890123', 'AbCdEf'].join('-'),

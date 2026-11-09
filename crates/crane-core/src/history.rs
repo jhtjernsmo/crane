@@ -141,7 +141,8 @@ mod tests {
     #[test]
     fn hides_secrets_in_error_text() {
         let mut e = entry(1, "");
-        e.error = Some("Could not find api.dev?key=sk_live_51HxYz2eZvKYlo2C8w9a".into());
+        // Built at run time, so secret scanners do not mistake the test for a leak.
+        e.error = Some(format!("Could not find api.dev?key={}", ["sk", "live", "51HxYz2eZvKYlo2C8w9a"].join("_")));
         assert_eq!(scrub(e).error.as_deref(), Some("Could not find api.dev?key=‹hidden›"));
     }
 
