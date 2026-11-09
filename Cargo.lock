@@ -751,7 +751,6 @@ version = "0.1.0"
 dependencies = [
  "crane-box",
  "crane-core",
- "keyring",
  "rfd",
  "serde",
  "serde_json",
@@ -778,9 +777,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "crane-cli"
+version = "0.1.0"
+dependencies = [
+ "crane-box",
+ "crane-core",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "crane-core"
 version = "0.1.0"
 dependencies = [
+ "keyring",
  "rcgen",
  "regex",
  "reqwest",

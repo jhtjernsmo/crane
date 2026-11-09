@@ -4,7 +4,7 @@
 //! Each secret is one entry, service `dev.crane.app`, user `<env id>/<name>`,
 //! so it shows up readable in the system's own keyring viewer.
 
-use crane_core::env::{SecretError, SecretStore};
+use crate::env::{SecretError, SecretStore};
 use keyring::{Entry, Error};
 
 const SERVICE: &str = "dev.crane.app";
@@ -49,7 +49,7 @@ mod tests {
     use super::*;
 
     /// Talks to the real keyring, so it only runs when asked:
-    /// `cargo test -p crane -- --ignored`
+    /// `cargo test -p crane-core --features keyring -- --ignored`
     #[test]
     #[ignore]
     fn round_trip_in_the_system_keyring() {

@@ -24,12 +24,16 @@ export interface Draft {
   bodyMode: BodyMode
   body: string
   form: Row[]
+  /** `@expect` lines: checks on the answer. */
+  expect: string[]
+  /** `@save` lines: values kept for later requests in a run. */
+  save: string[]
 }
 
 let nextRowId = 1
 export const row = (name = '', value = ''): Row => ({ id: nextRowId++, name, value, on: true })
 
-export const emptyDraft = (): Draft => ({ method: 'GET', url: '', headers: [], bodyMode: 'none', body: '', form: [] })
+export const emptyDraft = (): Draft => ({ method: 'GET', url: '', headers: [], bodyMode: 'none', body: '', form: [], expect: [], save: [] })
 
 // ---- Query string -------------------------------------------------------
 
@@ -159,6 +163,8 @@ export function toSaved(d: Draft, name: string): SavedRequest {
     headers: d.headers.filter((h) => h.name.trim()).map((h) => ({ name: h.name.trim(), value: h.value, enabled: h.on })),
     bodyMode: d.bodyMode,
     body: d.bodyMode === 'form' ? (bodyOf(d) ?? '') : d.bodyMode === 'none' ? '' : d.body,
+    expect: d.expect.map((e) => e.trim()).filter(Boolean),
+    save: d.save.map((e) => e.trim()).filter(Boolean),
   }
 }
 
@@ -171,11 +177,15 @@ export function fromSaved(s: SavedRequest): Draft {
     bodyMode: mode,
     body: mode === 'form' ? '' : s.body,
     form: mode === 'form' ? [...new URLSearchParams(s.body)].map(([k, v]) => row(k, v)) : [],
+    expect: s.expect ?? [],
+    save: s.save ?? [],
   }
 }
 
-/** True when saving `d` would write the same file as `saved`. */
-export const sameAsSaved = (d: Draft, saved: SavedRequest) => JSON.stringify(toSaved(d, saved.name)) === JSON.stringify(saved)
+/** True when saving `d` would write the same file as `saved`. Both go
+ * through the same shape first, so a file without checks equals a draft
+ * with an empty list of them. */
+export const sameAsSaved = (d: Draft, saved: SavedRequest) => JSON.stringify(toSaved(d, saved.name)) === JSON.stringify(toSaved(fromSaved(saved), saved.name))
 
 /** Puts `{{name}}` where a found secret was, so the file only points at the keyring. */
 export function moveToVariable(d: Draft, f: Finding, name: string): Draft {

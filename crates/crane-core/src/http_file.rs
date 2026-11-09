@@ -27,6 +27,12 @@ pub struct SavedRequest {
     /// `none`, `json`, `text` or `form` (`form` bodies are URL-encoded text).
     pub body_mode: String,
     pub body: String,
+    /// `# @expect` lines: checks on the answer (see `checks`).
+    #[serde(default)]
+    pub expect: Vec<String>,
+    /// `# @save` lines: values kept for later requests in a run.
+    #[serde(default)]
+    pub save: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -83,6 +89,12 @@ pub fn to_http(r: &SavedRequest) -> String {
     }
     if mode != "none" {
         out.push_str(&format!("# @crane body={mode}\n"));
+    }
+    for e in r.expect.iter().map(|e| e.trim()).filter(|e| !e.is_empty()) {
+        out.push_str(&format!("# @expect {}\n", one_line(e)));
+    }
+    for v in r.save.iter().map(|v| v.trim()).filter(|v| !v.is_empty()) {
+        out.push_str(&format!("# @save {}\n", one_line(v)));
     }
     out.push_str(&format!("{} {}\n", r.method.trim().to_ascii_uppercase(), one_line(r.url.trim())));
     for h in r.headers.iter().filter(|h| !h.name.trim().is_empty()) {
@@ -141,6 +153,8 @@ pub fn from_http(text: &str, fallback_name: &str) -> Result<ReadRequest, String>
     let mut lines = block.iter().copied();
     let mut name = None;
     let mut mode = None;
+    let mut expect = Vec::new();
+    let mut save = Vec::new();
     let request_line = loop {
         let Some(line) = lines.next() else { return Err("There is no request in this file.".into()) };
         if line.trim().is_empty() {
@@ -152,6 +166,10 @@ pub fn from_http(text: &str, fallback_name: &str) -> Result<ReadRequest, String>
                     name = Some(n.trim().to_string());
                 } else if let Some(m) = c.strip_prefix("@crane body=") {
                     mode = Some(m.trim().to_string());
+                } else if let Some(e) = c.strip_prefix("@expect ") {
+                    expect.push(e.trim().to_string());
+                } else if let Some(v) = c.strip_prefix("@save ") {
+                    save.push(v.trim().to_string());
                 }
             }
             None => break line.trim(),
@@ -200,9 +218,29 @@ pub fn from_http(text: &str, fallback_name: &str) -> Result<ReadRequest, String>
             headers,
             body_mode,
             body,
+            expect,
+            save,
         },
         read_only,
     })
+}
+
+/// What to send for a saved request: the headers that are on, the body for
+/// its mode, and the Content-Type the app would add, so a run sends exactly
+/// what the app sends.
+pub fn to_spec(r: &SavedRequest) -> crate::RequestSpec {
+    let mut headers: Vec<crate::Header> =
+        r.headers.iter().filter(|h| h.enabled && !h.name.trim().is_empty()).map(|h| crate::Header { name: h.name.trim().to_string(), value: h.value.clone() }).collect();
+    let has_type = headers.iter().any(|h| h.name.eq_ignore_ascii_case("content-type"));
+    if let (false, Some(ct)) = (has_type, content_type_for(&r.body_mode)) {
+        headers.push(crate::Header { name: "Content-Type".into(), value: ct.into() });
+    }
+    crate::RequestSpec {
+        method: r.method.clone(),
+        url: r.url.clone(),
+        headers,
+        body: (r.body_mode != "none").then(|| r.body.clone()),
+    }
 }
 
 #[cfg(test)]
@@ -221,6 +259,8 @@ mod tests {
             headers: vec![header("Accept", "application/json", true), header("X-Debug", "1", false)],
             body_mode: "json".into(),
             body: "{\n  \"qty\": 2\n}".into(),
+            expect: vec![],
+            save: vec![],
         }
     }
 
@@ -268,6 +308,16 @@ mod tests {
 
         let bare = from_http("example.com/health", "health").unwrap().request;
         assert_eq!((bare.method.as_str(), bare.url.as_str()), ("GET", "example.com/health"));
+    }
+
+    #[test]
+    fn keeps_checks_and_saves_as_comments() {
+        let mut r = order();
+        r.expect = vec!["status 201".into(), "json $.id exists".into()];
+        r.save = vec!["order_id = json $.id".into()];
+        let text = to_http(&r);
+        assert!(text.starts_with("# @name Create order\n# @crane body=json\n# @expect status 201\n# @expect json $.id exists\n# @save order_id = json $.id\nPOST"), "{text}");
+        assert_eq!(from_http(&text, "x").unwrap().request, r);
     }
 
     #[test]

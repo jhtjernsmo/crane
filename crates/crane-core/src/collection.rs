@@ -243,6 +243,8 @@ mod tests {
             headers: vec![SavedHeader { name: "Authorization".into(), value: auth.into(), enabled: true }],
             body_mode: "none".into(),
             body: String::new(),
+            expect: vec![],
+            save: vec![],
         }
     }
 

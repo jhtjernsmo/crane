@@ -1,0 +1,22 @@
+[package]
+name = "crane-cli"
+description = "Runs Crane collections from the command line, for CI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "crane-cli"
+path = "src/main.rs"
+
+[dependencies]
+crane-core = { path = "../crane-core" }
+serde_json = "1.0"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+crane-box = { path = "../crane-box" }
+
+[dev-dependencies]
+tempfile = "3"

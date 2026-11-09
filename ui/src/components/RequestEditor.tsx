@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { BODY_MODES, type BodyMode, type Draft, type Row, autoContentType, checkJson, isSecretName, parseQuery, row, withQuery } from '../request'
 import { findVars } from '../vars'
 import { KeyValueTable } from './KeyValueTable'
+import { LineList } from './LineList'
 
-type Tab = 'params' | 'headers' | 'body'
+type Tab = 'params' | 'headers' | 'body' | 'checks'
 
 const MODE_LABELS: Record<BodyMode, string> = { none: 'None', json: 'JSON', text: 'Text', form: 'Form' }
 const NO_BODY_METHODS = new Set(['GET', 'HEAD'])
@@ -92,6 +93,7 @@ export function RequestEditor({ draft, onChange }: { draft: Draft; onChange: (d:
         {tabButton('params', 'Query', paramCount)}
         {tabButton('headers', 'Headers', headerCount + (auto ? 1 : 0))}
         {tabButton('body', 'Body', draft.bodyMode === 'none' ? '' : MODE_LABELS[draft.bodyMode].toLowerCase())}
+        {tabButton('checks', 'Checks', draft.expect.length)}
       </div>
       {tab === 'params' && <ParamsEditor url={draft.url} onUrl={(url) => onChange({ ...draft, url })} />}
       {tab === 'headers' && (
@@ -115,6 +117,18 @@ export function RequestEditor({ draft, onChange }: { draft: Draft; onChange: (d:
         </>
       )}
       {tab === 'body' && <BodyEditor draft={draft} onChange={onChange} />}
+      {tab === 'checks' && (
+        <>
+          <LineList label="Check" lines={draft.expect} onChange={(expect) => onChange({ ...draft, expect })} placeholder="status 200" />
+          <p className="quiet small">
+            One check per line: <span className="mono">status 2xx</span>, <span className="mono">time &lt; 500ms</span>, <span className="mono">header content-type contains json</span>,{' '}
+            <span className="mono">body contains ok</span>, <span className="mono">json $.items length 3</span>, <span className="mono">{'json $.id = {{user_id}}'}</span>.
+          </p>
+          <h4 className="lbl">Keep for later requests</h4>
+          <LineList label="Save" lines={draft.save} onChange={(save) => onChange({ ...draft, save })} placeholder="token = json $.access_token" />
+          <p className="quiet small">Run all uses these: a value saved here can be used as a variable by the requests after it. Saved values count as secrets.</p>
+        </>
+      )}
     </>
   )
 }

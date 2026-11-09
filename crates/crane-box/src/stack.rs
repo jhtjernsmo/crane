@@ -316,6 +316,8 @@ pub mod run {
     const SETTLE: Duration = Duration::from_millis(500);
     const LOG_LINES_ON_FAILURE: usize = 12;
     const HTTP_DEFAULT_PORT: u16 = 80;
+    /// Pull progress is reported in steps of this many percent.
+    const PULL_REPORT_STEP: u64 = 10;
 
     #[derive(Debug, Clone, Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -362,10 +364,14 @@ pub mod run {
                     Some(i) => i,
                     None => {
                         say(&s.name, format!("Pulling {}", s.image));
+                        // Only every tenth: a pull reports each chunk it gets.
+                        let last = std::sync::atomic::AtomicU64::new(0);
                         engine
                             .pull(&s.image, |p| {
-                                if let Some(pct) = (p.done * 100).checked_div(p.total) {
-                                    say(&s.name, format!("Pulling {} {pct}%", s.image));
+                                let Some(pct) = (p.done * 100).checked_div(p.total) else { return };
+                                let step = pct / PULL_REPORT_STEP * PULL_REPORT_STEP;
+                                if step > last.swap(step, std::sync::atomic::Ordering::Relaxed) {
+                                    say(&s.name, format!("Pulling {} {step}%", s.image));
                                 }
                             })
                             .await?

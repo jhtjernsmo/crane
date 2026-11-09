@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Response } from '../api'
+import type { CheckResult, Response } from '../api'
 import { formatBytes, formatMs, headerValue, statusTone } from '../format'
 import { BodyView } from './BodyView'
 
@@ -34,6 +34,24 @@ function TimingRuler(timing: Response['timing']) {
   )
 }
 
+export function Checks({ checks }: { checks: CheckResult[] }) {
+  const failed = checks.filter((c) => !c.passed).length
+  return (
+    <div className={`checks ${failed ? 'has-failed' : ''}`}>
+      <div className="lbl">Checks · {checks.length - failed} of {checks.length} passed</div>
+      <ul aria-label="Checks">
+        {checks.map((c, i) => (
+          <li key={i} className={c.passed ? 'pass' : 'fail'}>
+            <span className="mark" aria-hidden="true">{c.passed ? 'ok' : 'no'}</span>
+            <span className="mono">{c.check}</span>
+            {c.detail && <span className="small quiet">{c.detail}</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export function ResponsePane({ res }: { res: Response }) {
   const [tab, setTab] = useState<'body' | 'headers'>('body')
   const contentType = headerValue(res.headers, 'content-type') ?? ''
@@ -45,6 +63,7 @@ export function ResponsePane({ res }: { res: Response }) {
         <span className="mono push">{formatMs(res.timing.totalMs)}</span>
         <span className="mono">{formatBytes(res.size)}</span>
       </div>
+      {res.checks && res.checks.length > 0 && <Checks checks={res.checks} />}
       <TimingRuler {...res.timing} />
       <div className="tabs" role="tablist" aria-label="Response parts">
         <button role="tab" aria-selected={tab === 'body'} onClick={() => setTab('body')}>Body</button>

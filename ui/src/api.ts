@@ -28,7 +28,15 @@ export interface Timing {
   totalMs: number
 }
 
+export interface CheckResult {
+  check: string
+  passed: boolean
+  detail: string | null
+}
+
 export interface Response {
+  /** How the request's `@expect` checks went; empty without checks. */
+  checks?: CheckResult[]
   status: number
   statusText: string
   url: string
@@ -94,8 +102,11 @@ async function call<T>(command: string, args: Record<string, unknown>, fallback:
 }
 
 /** Variables are filled in by Rust, which also hides echoed secrets in the answer. */
-export const sendRequest = (spec: RequestSpec, envId: string | null = null, confirmed = false) =>
-  call<Response>('send_request', { spec, envId, confirmed }, async () => sendFromBrowser(preview.resolve(spec, envId, confirmed)))
+export const sendRequest = (spec: RequestSpec, envId: string | null = null, confirmed = false, expect: string[] = []) =>
+  call<Response>('send_request', { spec, envId, confirmed, expect }, async () => {
+    const res = await sendFromBrowser(preview.resolve(spec, envId, confirmed))
+    return expect.length ? { ...res, checks: preview.checkAll(expect, res) } : res
+  })
 
 export const listEnvironments = () => call<EnvList>('list_environments', {}, async () => preview.list())
 
@@ -160,6 +171,8 @@ export interface SavedRequest {
   headers: SavedHeader[]
   bodyMode: string
   body: string
+  expect?: string[]
+  save?: string[]
 }
 
 export interface ReadRequest {
@@ -318,3 +331,26 @@ export async function onStackProgress(handler: (e: StackEvent) => void): Promise
   const { listen } = await import('@tauri-apps/api/event')
   return listen<StackEvent>('stack-progress', (e) => handler(e.payload))
 }
+
+// ---- Runs -------------------------------------------------------------------
+
+export interface Outcome {
+  path: string
+  name: string
+  method: string
+  status: number | null
+  totalMs: number | null
+  error: string | null
+  checks: CheckResult[]
+  saved: string[]
+  passed: boolean
+}
+
+export interface Report {
+  outcomes: Outcome[]
+  elapsedMs: number
+}
+
+/** Runs every request in the open folder, in path order, and checks the answers. */
+export const runCollection = (envId: string | null, confirmed = false) =>
+  call<Report>('run_collection', { envId, paths: null, confirmed }, async () => preview.runCollection(envId, confirmed, sendFromBrowser))

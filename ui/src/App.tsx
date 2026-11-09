@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { sendRequest } from './api'
+import { type Report, runCollection, sendRequest } from './api'
 import { type Ask, AskDialog } from './components/AskDialog'
 import { CollectionTree } from './components/CollectionTree'
 import { ConfirmSend } from './components/ConfirmSend'
@@ -11,6 +11,7 @@ import { FileBar } from './components/FileBar'
 import { Logo } from './components/Logo'
 import { RequestBar } from './components/RequestBar'
 import { RequestEditor } from './components/RequestEditor'
+import { RunReport } from './components/RunReport'
 import { ResponsePane } from './components/ResponsePane'
 import { SecretReview } from './components/SecretReview'
 import { StartHint } from './components/StartHint'
@@ -42,6 +43,9 @@ export default function App() {
   const [naming, setNaming] = useState(false)
   const [ask, setAsk] = useState<Ask | null>(null)
   const [view, setView] = useState<'requests' | 'containers'>('requests')
+  const [report, setReport] = useState<Report | null>(null)
+  const [running, setRunning] = useState(false)
+  const [runProblem, setRunProblem] = useState<string | null>(null)
   const closeAsk = useCallback(() => setAsk(null), [])
   const closeEnvs = useCallback(() => setEditingEnvs(false), [])
   const cancelConfirm = useCallback(() => setConfirming(false), [])
@@ -60,7 +64,8 @@ export default function App() {
     setConfirming(false)
     setSending(true)
     try {
-      history.record(draft, env?.name ?? null, { res: await sendRequest(spec, env?.id ?? null, confirmed) })
+      setReport(null)
+      history.record(draft, env?.name ?? null, { res: await sendRequest(spec, env?.id ?? null, confirmed, draft.expect) })
     } catch (e) {
       history.record(draft, env?.name ?? null, { error: e instanceof Error ? e.message : String(e) })
     }
@@ -91,6 +96,22 @@ export default function App() {
       return
     }
     void col.load(path)
+  }
+
+  const runAll = async (confirmed = false) => {
+    const env = envs.active
+    if (env?.production && !confirmed) {
+      setAsk({ title: `Run every request against ${env.name}?`, text: `${env.name} is marked as production. Requests that change data will change real data.`, yes: `Run against ${env.name}`, danger: true, onYes: () => void runAll(true) })
+      return
+    }
+    setRunning(true)
+    setRunProblem(null)
+    try {
+      setReport(await runCollection(env?.id ?? null, confirmed))
+    } catch (e) {
+      setRunProblem((e as Error).message)
+    }
+    setRunning(false)
   }
 
   const askDelete = (path: string, name: string) =>
@@ -134,7 +155,7 @@ export default function App() {
             <button role="tab" aria-selected={side === 'requests'} onClick={() => setSide('requests')} className="lbl">Saved</button>
             <button role="tab" aria-selected={side === 'history'} onClick={() => setSide('history')} className="lbl">History</button>
           </div>
-          {side === 'requests' && <CollectionTree col={col} onOpen={openFile} onDelete={askDelete} />}
+          {side === 'requests' && <CollectionTree col={col} onOpen={openFile} onDelete={askDelete} onRunAll={() => void runAll()} running={running} />}
           {side === 'requests' && col.problem && !col.review && <p className="problem small side-problem" role="alert">{col.problem}</p>}
           {side === 'history' && (
             <HistoryList
@@ -164,20 +185,23 @@ export default function App() {
           </section>
           <section>
             <div className="lbl"><span className="num">02</span>Response</div>
-            {sending && <p className="quiet">Waiting for an answer…</p>}
+            {running && <p className="quiet">Running every request…</p>}
+          {runProblem && <p className="problem" role="alert">{runProblem}</p>}
+          {report && !running && <RunReport report={report} onOpen={(p) => openFile(p)} onClose={() => setReport(null)} />}
+          {sending && <p className="quiet">Waiting for an answer…</p>}
             {!sending && current?.error && (
               <div className="problem" role="alert">
                 <b>Not sent.</b> {current.error}
               </div>
             )}
-            {!sending && current?.res && <ResponsePane key={current.id} res={current.res} />}
+            {!sending && !report && current?.res && <ResponsePane key={current.id} res={current.res} />}
             {!sending && current && !current.res && !current.error && current.summary && (
               <p className="help">
                 This was sent in an earlier session{current.summary.status ? ` and answered ${current.summary.status}` : ''}. Crane keeps only a summary, never the
                 answer itself. Send it again to see the answer.
               </p>
             )}
-            {!sending && !current && <p className="quiet">The answer shows up here.</p>}
+            {!sending && !current && !report && !running && <p className="quiet">The answer shows up here.</p>}
           </section>
         </main>
         </>

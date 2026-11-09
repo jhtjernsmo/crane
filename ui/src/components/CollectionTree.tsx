@@ -6,6 +6,8 @@ interface Props {
   col: Collection
   onOpen: (path: string) => void
   onDelete: (path: string, name: string) => void
+  onRunAll: () => void
+  running: boolean
 }
 
 function Nodes({ nodes, depth, props, closed, toggle }: { nodes: TreeNode[]; depth: number; props: Props; closed: ReadonlySet<string>; toggle: (p: string) => void }) {
@@ -60,6 +62,7 @@ export function CollectionTree(props: Props) {
     <>
       <div className="col-head pad">
         <span className="col-name" title={col.view.root}>{col.view.name}</span>
+        <button type="button" className="link" onClick={props.onRunAll} disabled={props.running} title="Send every request and check the answers">Run all</button>
         <button type="button" className="link" onClick={col.newRequest}>New</button>
         <button type="button" className="link" onClick={() => setNewFolder('')}>Folder</button>
         <button type="button" className="link quiet-link" onClick={() => void col.closeFolder()} title="Close the folder">Close</button>

@@ -6,7 +6,6 @@
 //! never back: the UI learns only which secrets have a value.
 
 mod boxes;
-mod secrets;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -129,6 +128,38 @@ async fn save_request(state: State<'_, AppState>, path: String, request: SavedRe
     state.collection()?.save(&path, &request, allow_secrets).map_err(|e| e.to_string())
 }
 
+/// Runs every request in the open folder (or the given ones) and checks
+/// the answers. Writes in a production environment need `confirmed`.
+#[tauri::command]
+async fn run_collection(
+    state: State<'_, AppState>,
+    env_id: Option<String>,
+    paths: Option<Vec<String>>,
+    confirmed: bool,
+) -> Result<crane_core::runner::Report, String> {
+    let col = state.collection()?;
+    let paths = match paths {
+        Some(p) => p,
+        None => crane_core::runner::request_paths(&col.tree().map_err(|e| e.to_string())?),
+    };
+    let env = env_id.and_then(|id| state.envs().get(&id).cloned());
+    if let Some(e) = env.as_ref().filter(|e| e.production)
+        && !confirmed
+        && paths.iter().filter_map(|p| col.read(p).ok()).any(|r| WRITE_METHODS.contains(&r.request.method.trim().to_ascii_uppercase().as_str()))
+    {
+        return Err(format!("{} is a production environment. Confirm before running requests that change data.", e.name));
+    }
+    let store = Arc::clone(&state.secrets);
+    let opts = crane_core::runner::RunOptions {
+        env,
+        store: store.as_ref(),
+        vars: vec![],
+        send: SendOptions { timeout: REQUEST_TIMEOUT, ..SendOptions::default() },
+        bail: false,
+    };
+    Ok(crane_core::runner::run(&col, &paths, opts, |_| {}).await)
+}
+
 #[tauri::command]
 async fn new_request_path(state: State<'_, AppState>, folder: String, name: String) -> Result<String, String> {
     state.collection()?.new_path(&folder, &name).map_err(|e| e.to_string())
@@ -219,15 +250,25 @@ async fn set_secret(state: State<'_, AppState>, env_id: String, name: String, va
     env_list(&state).await
 }
 
+/// An answer and how its checks went.
+#[derive(Serialize)]
+struct SendResult {
+    #[serde(flatten)]
+    response: Response,
+    checks: Vec<crane_core::checks::CheckResult>,
+}
+
 /// Errors cross to the UI as the plain sentences from `SendError`, with any
-/// secret values in them hidden.
+/// secret values in them hidden. `expect` lines are checked before secrets
+/// are hidden in the answer, so a check can compare with `{{token}}`.
 #[tauri::command]
 async fn send_request(
     state: State<'_, AppState>,
     spec: RequestSpec,
     env_id: Option<String>,
     confirmed: bool,
-) -> Result<Response, String> {
+    expect: Option<Vec<String>>,
+) -> Result<SendResult, String> {
     let env = env_id.and_then(|id| state.envs().get(&id).cloned());
     if let Some(e) = &env
         && e.production
@@ -237,10 +278,19 @@ async fn send_request(
         return Err(format!("{} is a production environment. Confirm before sending {}.", e.name, spec.method));
     }
     let store = Arc::clone(&state.secrets);
-    let resolved = blocking(move || resolve(&spec, env.as_ref(), store.as_ref())).await?.map_err(|e| e.to_string())?;
+    let (resolved, values) = blocking(move || {
+        let resolved = resolve(&spec, env.as_ref(), store.as_ref())?;
+        let values = env.as_ref().map(|e| crane_core::runner::env_values(e, store.as_ref())).unwrap_or_default();
+        Ok::<_, crane_core::SendError>((resolved, values))
+    })
+    .await?
+    .map_err(|e| e.to_string())?;
     let opts = SendOptions { timeout: REQUEST_TIMEOUT, network: resolved.network.clone(), ..SendOptions::default() };
     match crane_core::send(&resolved.spec, &opts).await {
-        Ok(res) => Ok(mask_response(res, &resolved.secrets)),
+        Ok(res) => {
+            let checks = crane_core::runner::run_checks(&expect.unwrap_or_default(), &res, &values, &resolved.secrets);
+            Ok(SendResult { response: mask_response(res, &resolved.secrets), checks })
+        }
         Err(e) => Err(mask(&e.to_string(), &resolved.secrets)),
     }
 }
@@ -278,7 +328,7 @@ pub fn run() {
             app.manage(AppState {
                 envs: Mutex::new(envs),
                 env_path,
-                secrets: Arc::new(secrets::KeyringSecrets),
+                secrets: Arc::new(crane_core::keyring_store::KeyringSecrets),
                 collection: Mutex::new(collection),
                 settings_path,
                 history_path,
@@ -295,6 +345,7 @@ pub fn run() {
             close_collection,
             read_request,
             save_request,
+            run_collection,
             new_request_path,
             create_folder,
             delete_request,

@@ -150,6 +150,8 @@ mod tests {
             headers: headers.iter().map(|(n, v)| SavedHeader { name: (*n).into(), value: (*v).into(), enabled: true }).collect(),
             body_mode: "json".into(),
             body: body.into(),
+            expect: vec![],
+            save: vec![],
         }
     }
 

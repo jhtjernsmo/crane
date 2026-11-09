@@ -1,7 +1,8 @@
 // Stand-in for the Rust side when the UI runs in a plain browser (npm run dev)
 // or in tests. Everything lives in memory and is gone on reload; the real app
 // keeps plain values in a file and secrets in the system keyring.
-import type { BoxStatus, CollectionView, StackEvent, StackInfo, EnvFile, EnvList, Finding, HistoryEntry, ImageView, PortMap, PullProgress, ReadRequest, RunRequest, RequestSpec, Response, SaveResult, SavedRequest, TreeNode } from './api'
+import type { BoxStatus, CheckResult, CollectionView, Report, StackEvent, StackInfo, EnvFile, EnvList, Finding, HistoryEntry, ImageView, PortMap, PullProgress, ReadRequest, RunRequest, RequestSpec, Response, SaveResult, SavedRequest, TreeNode } from './api'
+import { check } from './checks'
 import { looksLikeSecret } from './secretScan'
 import { fillVars, findVars, listVars } from './vars'
 
@@ -335,3 +336,36 @@ export function stackDown() {
 }
 
 export const SAMPLE_STACK_INFO = SAMPLE_STACK
+
+// ---- Checks and runs ----------------------------------------------------------
+
+export const checkAll = (lines: string[], res: Response): CheckResult[] => lines.filter((l) => l.trim()).map((l) => check(l.trim(), res))
+
+/** Runs the pretend folder's requests through the browser's fetch. */
+export async function runCollection(
+  envId: string | null,
+  confirmed: boolean,
+  sender: (r: { spec: RequestSpec; secrets: [string, string][] }) => Promise<Response>,
+): Promise<Report> {
+  const all = need()
+  const started = Date.now()
+  const env = file.environments.find((e) => e.id === envId)
+  const paths = [...all.keys()].sort()
+  if (env?.production && !confirmed && paths.some((p) => WRITE_METHODS.includes(all.get(p)!.method))) {
+    throw `${env.name} is a production environment. Confirm before running requests that change data.`
+  }
+  const outcomes = []
+  for (const path of paths) {
+    const r = all.get(path)!
+    const spec: RequestSpec = { method: r.method, url: r.url, headers: r.headers.filter((h) => h.enabled).map(({ name, value }) => ({ name, value })), body: r.bodyMode === 'none' ? null : r.body }
+    try {
+      const res = await sender(resolve(spec, envId, true))
+      const checks = checkAll(r.expect ?? [], res)
+      const passed = checks.length ? checks.every((c) => c.passed) : res.status < 400
+      outcomes.push({ path, name: r.name, method: r.method, status: res.status, totalMs: res.timing.totalMs, error: null, checks, saved: [], passed })
+    } catch (e) {
+      outcomes.push({ path, name: r.name, method: r.method, status: null, totalMs: null, error: String(e instanceof Error ? e.message : e), checks: [], saved: [], passed: false })
+    }
+  }
+  return { outcomes, elapsedMs: Date.now() - started }
+}

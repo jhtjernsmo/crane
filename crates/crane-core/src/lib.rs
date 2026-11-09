@@ -2,11 +2,15 @@
 //! a [`Response`] (or a [`SendError`] with a message for people) back out.
 
 mod client;
+pub mod checks;
 pub mod collection;
 pub mod env;
 pub mod history;
 pub mod http_file;
+#[cfg(feature = "keyring")]
+pub mod keyring_store;
 pub mod network;
+pub mod runner;
 pub mod secret_scan;
 mod send;
 mod url;
