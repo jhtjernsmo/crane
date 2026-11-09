@@ -109,6 +109,11 @@ describe('history', () => {
     expect(kept.headers.map((h) => h.value)).toEqual(['', 'json'])
   })
 
+  it('keeps secret headers that only point at a variable', () => {
+    const kept = forHistory(draft({ headers: [row('Authorization', 'Bearer {{token}}')] }))
+    expect(kept.headers[0].value).toBe('Bearer {{token}}')
+  })
+
   it('never keeps secret form values', () => {
     const kept = forHistory(draft({ form: [row('password', 'hunter2'), row('user', 'ada')] }))
     expect(kept.form.map((h) => h.value)).toEqual(['', 'ada'])

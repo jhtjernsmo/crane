@@ -1,10 +1,12 @@
 //! Crane's request engine. The Tauri shell only passes a [`RequestSpec`] in and
 //! a [`Response`] (or a [`SendError`] with a message for people) back out.
 
+pub mod env;
 mod send;
 mod url;
+pub mod vars;
 
-pub use send::{MAX_SHOWN_BYTES, Response, Timing, send};
+pub use send::{MAX_SHOWN_BYTES, Response, Timing, mask_response, send};
 pub use url::normalize_url;
 
 use serde::{Deserialize, Serialize};
@@ -49,4 +51,22 @@ pub enum SendError {
     Tls(String, String),
     #[error("The request failed: {0}")]
     Other(String),
+    #[error("This request uses {}, but no environment is picked. Pick one at the top, or add one under Environments.", list_vars(.0))]
+    NoEnvironment(Vec<String>),
+    #[error("{} has no {}. Add {} under Environments, or pick another environment.", .0, list_vars(.1), if .1.len() == 1 { "it" } else { "them" })]
+    MissingVars(String, Vec<String>),
+    #[error("The secret {{{{{1}}}}} in {0} has no value yet. Set it under Environments.")]
+    SecretNotSet(String, String),
+    #[error("Could not read the system keyring: {0}. Is it unlocked?")]
+    Keyring(String),
+}
+
+/// `{{a}}`, `{{a}} or {{b}}`, `{{a}}, {{b}} or {{c}}`.
+fn list_vars(names: &[String]) -> String {
+    let wrapped: Vec<String> = names.iter().map(|n| format!("{{{{{n}}}}}")).collect();
+    match wrapped.split_last() {
+        Some((last, rest)) if !rest.is_empty() => format!("{} or {last}", rest.join(", ")),
+        Some((last, _)) => last.clone(),
+        None => String::new(),
+    }
 }

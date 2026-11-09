@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use reqwest::{Client, Method};
 use serde::Serialize;
 
+use crate::vars::mask;
 use crate::{Header, RequestSpec, SendError, normalize_url};
 
 /// Bodies bigger than this are cut when shown; `size` still has the full length.
@@ -91,6 +92,19 @@ pub async fn send(client: &Client, spec: &RequestSpec, timeout: Duration) -> Res
             total_ms: ms(done - started),
         },
     })
+}
+
+/// Hides secret values that the server sent back, in the body, headers and URL.
+pub fn mask_response(res: Response, secrets: &[(String, String)]) -> Response {
+    if secrets.is_empty() {
+        return res;
+    }
+    Response {
+        url: mask(&res.url, secrets),
+        headers: res.headers.into_iter().map(|h| Header { name: h.name, value: mask(&h.value, secrets) }).collect(),
+        body: res.body.map(|b| mask(&b, secrets)),
+        ..res
+    }
 }
 
 fn ms(d: Duration) -> u64 {

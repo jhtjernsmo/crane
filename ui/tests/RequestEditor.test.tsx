@@ -66,7 +66,7 @@ describe('request editor', () => {
         { name: 'Content-Type', value: 'application/json' },
       ],
       body: '{"qty": 2}',
-    })
+    }, null, false)
   })
 
   it('points at broken JSON and tidies valid JSON', () => {

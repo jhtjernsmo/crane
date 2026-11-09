@@ -129,3 +129,42 @@ async fn refuses_bad_methods_and_headers_before_sending() {
     s.headers = vec![Header { name: "Bad Name".into(), value: "x".into() }];
     assert_eq!(send(&client, &s, TIMEOUT).await.unwrap_err(), SendError::BadHeader("Bad Name".into()));
 }
+
+#[tokio::test]
+async fn fills_in_variables_and_hides_secrets_the_server_echoes() {
+    use crane_core::env::{Environment, MemorySecrets, SecretStore, Var, resolve};
+    use crane_core::mask_response;
+
+    let addr = serve_once(|request| {
+        let mut reply = http("200 OK", "text/plain", request.as_bytes());
+        // Also echo the secret in a response header.
+        let token = request.lines().find_map(|l| l.strip_prefix("authorization: Bearer ")).unwrap_or("").to_string();
+        let at = reply.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
+        reply.splice(at..at, format!("\r\nX-Echo: {token}").into_bytes());
+        reply
+    });
+    let store = MemorySecrets::default();
+    store.set("local", "token", "tk_live_8f3k2").unwrap();
+    let env = Environment {
+        id: "local".into(),
+        name: "Local".into(),
+        production: false,
+        vars: vec![
+            Var { name: "base".into(), value: addr, secret: false },
+            Var { name: "token".into(), value: String::new(), secret: true },
+        ],
+    };
+    let mut s = spec("GET", "{{base}}/me?key={{token}}");
+    s.headers = vec![Header { name: "Authorization".into(), value: "Bearer {{token}}".into() }];
+
+    let resolved = resolve(&s, Some(&env), &store).unwrap();
+    let res = mask_response(send(&reqwest::Client::new(), &resolved.spec, TIMEOUT).await.unwrap(), &resolved.secrets);
+
+    let body = res.body.unwrap();
+    assert!(body.starts_with("GET /me?key=‹token hidden› HTTP/1.1"), "{body}");
+    assert!(body.contains("authorization: Bearer ‹token hidden›"), "{body}");
+    assert!(!body.contains("tk_live"));
+    assert!(!res.url.contains("tk_live"), "{}", res.url);
+    let echo = res.headers.iter().find(|h| h.name == "x-echo").unwrap();
+    assert_eq!(echo.value, "‹token hidden›");
+}

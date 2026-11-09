@@ -136,3 +136,56 @@ table.kv tr:last-child input::placeholder { color: var(--mute); opacity: 0.7; }
 
 textarea.code-edit { width: 100%; min-height: 180px; resize: vertical; border: 1px solid var(--line); background: var(--panel); padding: 10px 12px; font: 12.5px/1.65 'IBM Plex Mono', monospace; outline: none; tab-size: 2; white-space: pre; overflow: auto; }
 textarea.code-edit:focus { border-color: var(--ink); }
+
+/* Environments */
+header select { font: 500 12.5px 'IBM Plex Mono', monospace; background: var(--panel); border: 1px solid var(--line); padding: 2px 6px; }
+.env-pick { display: flex; align-items: center; gap: 8px; margin-left: 12px; padding-left: 18px; border-left: 1px solid var(--line); height: 26px; }
+.env-pick.is-prod select { border-color: var(--bad); color: var(--bad); }
+.prod-tag { font: 600 10px 'IBM Plex Mono', monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bad); border: 1px solid currentColor; padding: 0 5px; }
+.link.danger, .btn-main.danger { color: var(--bad); }
+
+.var-line { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.var-line button { display: flex; gap: 6px; align-items: baseline; border: 1px solid var(--line); background: var(--panel); padding: 3px 8px; font-size: 12px; max-width: 100%; }
+.var-line button:hover { border-color: var(--ink); }
+.var-line .arrow { color: var(--mute); }
+.var-line .v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+.var-line .secret .v { color: var(--key); }
+.var-line .warn button { border-color: var(--warn); }
+.var-line .warn .v { color: var(--warn); }
+.var-line .bad button { border-color: var(--bad); }
+.var-line .bad .v { color: var(--bad); }
+
+.scrim { position: fixed; inset: 0; background: color-mix(in srgb, var(--ink) 35%, transparent); display: grid; place-items: center; padding: 24px; z-index: 10; }
+.dialog { background: var(--bg); border: 1px solid var(--ink); box-shadow: 8px 8px 0 color-mix(in srgb, var(--ink) 18%, transparent); display: flex; flex-direction: column; gap: 14px; padding: 18px 20px; max-height: 100%; overflow: auto; }
+.dialog-head { display: flex; align-items: baseline; }
+.dialog-foot { display: flex; justify-content: flex-end; gap: 10px; }
+.btn-main { background: var(--accent); color: var(--on-accent); font-weight: 600; padding: 7px 16px; }
+.btn-main.danger { background: var(--bad); color: #fff; }
+.btn-main:disabled { opacity: 0.7; cursor: progress; }
+.btn-quiet { border: 1px solid var(--line); padding: 7px 14px; }
+.btn-quiet:hover { border-color: var(--ink); }
+
+.env-editor { width: min(860px, 100%); }
+.env-cols { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 20px; min-height: 280px; }
+.env-cols nav { border-right: 1px solid var(--line); padding-right: 14px; display: flex; flex-direction: column; gap: 10px; }
+.env-cols nav ul { list-style: none; }
+.env-cols nav li button { width: 100%; text-align: left; padding: 6px 8px; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.env-cols nav li button:hover { background: var(--panel); }
+.env-cols nav li .sel { background: var(--panel); box-shadow: inset 3px 0 0 var(--accent); }
+.env-cols nav > .link { align-self: flex-start; }
+.env-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.env-fields { display: flex; gap: 18px; align-items: end; flex-wrap: wrap; }
+.env-fields label { display: flex; flex-direction: column; gap: 4px; }
+.env-fields label.check { flex-direction: row; align-items: center; gap: 8px; font-size: 13px; padding-bottom: 6px; }
+.env-fields input:not([type='checkbox']) { border: 1px solid var(--line); background: var(--panel); padding: 6px 8px; min-width: 200px; }
+.env-fields input[type='checkbox'] { accent-color: var(--bad); }
+table.env-vars th { text-align: left; font: 500 10.5px 'IBM Plex Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); padding: 0 8px 4px; border-bottom: 1px solid var(--line); }
+table.env-vars th.tick { width: 64px; text-align: center; }
+table.env-vars .tick { width: 64px; }
+table.env-vars tr.note td { border-left: 0; padding: 4px 8px 6px; font: 12px 'IBM Plex Sans', sans-serif; color: var(--warn); }
+table.env-vars .val input { padding-right: 8px; }
+table.env-vars input[type='password']::placeholder { font-family: 'IBM Plex Sans', sans-serif; }
+
+.confirm { width: min(460px, 100%); border-color: var(--bad); }
+.confirm h2 { font-size: 17px; }
+.confirm .target { background: var(--panel); border: 1px solid var(--line); padding: 8px 10px; word-break: break-all; }

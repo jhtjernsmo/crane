@@ -29,7 +29,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /send/i }))
 
     expect(await screen.findByText('201')).toBeTruthy()
-    expect(send).toHaveBeenCalledWith({ method: 'GET', url: 'localhost:8080', headers: [], body: null })
+    expect(send).toHaveBeenCalledWith({ method: 'GET', url: 'localhost:8080', headers: [], body: null }, null, false)
     expect(screen.getByText('Created')).toBeTruthy()
     expect(screen.getByText('412 B')).toBeTruthy()
     expect(screen.getByText('"ord_7f3k2"').className).toBe('t-string')

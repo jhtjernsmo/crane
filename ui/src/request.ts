@@ -2,6 +2,8 @@
 // Rust side sends. Kept free of React so every rule here has a test.
 import type { Header, RequestSpec } from './api'
 
+import { findVars } from './vars'
+
 export { checkJson } from './jsonCheck'
 
 /** One line in a name/value table. `on: false` keeps it on screen but unsent. */
@@ -127,7 +129,10 @@ export function buildSpec(d: Draft): RequestSpec {
 
 // ---- History ------------------------------------------------------------
 
-const blankSecrets = (rows: Row[]) => rows.map((r) => (isSecretName(r.name) ? { ...r, value: '' } : r))
+/** `Bearer {{token}}` only points at the keyring, so it is safe to keep; `Bearer abc` is not. */
+const pointsAtVariable = (value: string) => findVars(value).length > 0
+
+const blankSecrets = (rows: Row[]) => rows.map((r) => (isSecretName(r.name) && !pointsAtVariable(r.value) ? { ...r, value: '' } : r))
 
 /** A copy safe to keep in the history list: secret values are dropped. */
 export const forHistory = (d: Draft): Draft => ({ ...d, headers: blankSecrets(d.headers), form: blankSecrets(d.form) })

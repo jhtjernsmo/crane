@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { BODY_MODES, type BodyMode, type Draft, type Row, autoContentType, checkJson, parseQuery, row, withQuery } from '../request'
+import { BODY_MODES, type BodyMode, type Draft, type Row, autoContentType, checkJson, isSecretName, parseQuery, row, withQuery } from '../request'
+import { findVars } from '../vars'
 import { KeyValueTable } from './KeyValueTable'
 
 type Tab = 'params' | 'headers' | 'body'
@@ -102,6 +103,12 @@ export function RequestEditor({ draft, onChange }: { draft: Draft; onChange: (d:
           {auto && (
             <p className="quiet small">
               <span className="mono">Content-Type: {auto}</span> is added for the body. Add your own Content-Type to change it.
+            </p>
+          )}
+          {draft.headers.some((h) => h.on && isSecretName(h.name) && h.value.trim() && findVars(h.value).length === 0) && (
+            <p className="help small">
+              Tip: put this value in an environment as a secret and write <span className="mono">{'Bearer {{token}}'}</span> here. Then it stays in the system keyring and
+              is hidden if the server sends it back.
             </p>
           )}
           <p className="quiet small">Values of Authorization, Cookie and names with token, key or secret are hidden and never kept in history.</p>

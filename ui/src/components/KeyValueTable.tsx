@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { type Row, isSecretName, row } from '../request'
+import { findVars } from '../vars'
 
 interface Props {
   label: string
@@ -37,7 +38,8 @@ export function KeyValueTable({ label, rows, onChange, toggles = true, suggest }
       <tbody>
         {[...rows, blank].map((r, i) => {
           const isBlank = r.id === blank.id
-          const secret = isSecretName(r.name)
+          // `Bearer {{token}}` only points at the keyring, so there is nothing to hide.
+          const secret = isSecretName(r.name) && findVars(r.value).length === 0
           const hidden = secret && !shown.has(r.id)
           return (
             <tr key={r.id} className={r.on ? '' : 'off'}>
