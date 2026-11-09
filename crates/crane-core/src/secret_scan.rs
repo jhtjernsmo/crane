@@ -26,11 +26,13 @@ static KNOWN: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     .collect()
 });
 static UUID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$").expect("valid pattern"));
-static SECRET_NAME: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)^(authorization|proxy-authorization|cookie)$|token|secret|passw(or)?d|api[-_]?key|session|credential|private").expect("valid pattern"));
+static SECRET_NAME: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)^(authorization|proxy-authorization|cookie)$|token|secret|passw(or)?d|api[-_]?key|session|credential|private").expect("valid pattern")
+});
 /// `"password": "hunter2"` and `password=hunter2` in bodies and queries.
 static NAMED_VALUE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)"?([A-Za-z0-9_-]*(?:token|secret|passw(?:or)?d|api[-_]?key|credential)[A-Za-z0-9_-]*)"?\s*[:=]\s*"?([^"&,\s{}]+)"#).expect("valid pattern")
+    Regex::new(r#"(?i)"?([A-Za-z0-9_-]*(?:token|secret|passw(?:or)?d|api[-_]?key|credential)[A-Za-z0-9_-]*)"?\s*[:=]\s*"?([^"&,\s{}]+)"#)
+        .expect("valid pattern")
 });
 static AUTH_SCHEME: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^(bearer|basic|token|digest)\s+").expect("valid pattern"));
 
@@ -72,9 +74,7 @@ pub fn secret_in(text: &str) -> Option<String> {
             return Some(m.as_str().to_string());
         }
     }
-    text.split(|c: char| c.is_whitespace() || matches!(c, '"' | '\'' | ',' | '&' | '?' | '=' | ';' | '[' | ']'))
-        .find(|w| looks_random(w))
-        .map(str::to_string)
+    text.split(|c: char| c.is_whitespace() || matches!(c, '"' | '\'' | ',' | '&' | '?' | '=' | ';' | '[' | ']')).find(|w| looks_random(w)).map(str::to_string)
 }
 
 pub fn is_secret_name(name: &str) -> bool {

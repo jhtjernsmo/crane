@@ -20,7 +20,7 @@ function FileField({ label, hint, value, onChange }: { label: string; hint: stri
 }
 
 /** Certificates and proxy for internal APIs. */
-export function NetworkFields({ network, production, onChange }: { network: Network; production: boolean; onChange: (n: Network) => void }) {
+export function NetworkFields({ network, production, onChange, insecureOff = null }: { network: Network; production: boolean; onChange: (n: Network) => void; insecureOff?: string | null }) {
   const [open, setOpen] = useState(() => network.caFile !== '' || network.clientCertFile !== '' || network.insecure || network.proxy !== '')
   const set = (patch: Partial<Network>) => onChange({ ...network, ...patch })
   const mode = modeOf(network.proxy)
@@ -39,9 +39,9 @@ export function NetworkFields({ network, production, onChange }: { network: Netw
           <FileField label="CA certificates" hint="A PEM file with your company's CA or a self-signed server certificate, trusted on top of the system's." value={network.caFile} onChange={(caFile) => set({ caFile })} />
           <FileField label="Client certificate" hint="For servers that want one (mutual TLS): a PEM file with the certificate and its unencrypted key." value={network.clientCertFile} onChange={(clientCertFile) => set({ clientCertFile })} />
           <label className="check">
-            <input type="checkbox" checked={network.insecure} disabled={production} onChange={(e) => set({ insecure: e.target.checked })} />
+            <input type="checkbox" checked={network.insecure} disabled={production || insecureOff !== null} onChange={(e) => set({ insecure: e.target.checked })} />
             Skip certificate checks
-            <span className="small quiet">{production ? 'Not allowed in production.' : 'Only for local development: anyone in between could read the traffic.'}</span>
+            <span className="small quiet">{insecureOff ?? (production ? 'Not allowed in production.' : 'Only for local development: anyone in between could read the traffic.')}</span>
           </label>
           {network.insecure && <p className="help small">Certificates are not checked in this environment. Prefer adding the CA file above.</p>}
           <div className="net-field">

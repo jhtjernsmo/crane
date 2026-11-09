@@ -354,3 +354,34 @@ export interface Report {
 /** Runs every request in the open folder, in path order, and checks the answers. */
 export const runCollection = (envId: string | null, confirmed = false) =>
   call<Report>('run_collection', { envId, paths: null, confirmed }, async () => preview.runCollection(envId, confirmed, sendFromBrowser))
+
+// ---- Organisation policy ----------------------------------------------------
+
+/** Rules an organisation sets in /etc/crane/policy.toml; enforced in Rust. */
+export interface Policy {
+  contact: string | null
+  allowedHosts: string[] | null
+  blockedHosts: string[]
+  allowSavingSecrets: boolean
+  allowInsecureTls: boolean
+  containers: boolean
+  keepHistory: boolean
+  /** The file the rules come from; null when there is none. */
+  source: string | null
+  /** Set when the file is broken and the strictest rules apply. */
+  problem: string | null
+}
+
+export const OPEN_POLICY: Policy = {
+  contact: null,
+  allowedHosts: null,
+  blockedHosts: [],
+  allowSavingSecrets: true,
+  allowInsecureTls: true,
+  containers: true,
+  keepHistory: true,
+  source: null,
+  problem: null,
+}
+
+export const getPolicy = () => call<Policy>('get_policy', {}, async () => preview.getPolicy())

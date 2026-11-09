@@ -59,8 +59,8 @@ impl Network {
         }
         if !self.client_cert_file.trim().is_empty() {
             let pem = read(&self.client_cert_file).await?;
-            let id = Identity::from_pem(&pem)
-                .map_err(|_| bad_file(&self.client_cert_file, "it needs a certificate and an unencrypted private key, both in PEM"))?;
+            let id =
+                Identity::from_pem(&pem).map_err(|_| bad_file(&self.client_cert_file, "it needs a certificate and an unencrypted private key, both in PEM"))?;
             builder = builder.identity(id);
         }
         if self.insecure {

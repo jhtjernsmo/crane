@@ -4,8 +4,7 @@
 /// Allowed in a variable name: letters, digits, `_`, `-` and `.`.
 pub fn is_var_name(name: &str) -> bool {
     let mut chars = name.chars();
-    matches!(chars.next(), Some(c) if c.is_ascii_alphabetic() || c == '_')
-        && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
+    matches!(chars.next(), Some(c) if c.is_ascii_alphabetic() || c == '_') && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
 }
 
 enum Piece<'a> {
@@ -161,11 +160,7 @@ mod tests {
 
     #[test]
     fn hides_the_longer_secret_first_and_skips_tiny_ones() {
-        let secrets = vec![
-            ("short".to_string(), "abcd".to_string()),
-            ("long".to_string(), "abcdefgh".to_string()),
-            ("tiny".to_string(), "ok".to_string()),
-        ];
+        let secrets = vec![("short".to_string(), "abcd".to_string()), ("long".to_string(), "abcdefgh".to_string()), ("tiny".to_string(), "ok".to_string())];
         assert_eq!(mask("abcdefgh abcd ok", &secrets), "‹long hidden› ‹short hidden› ok");
     }
 }

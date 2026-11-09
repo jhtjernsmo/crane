@@ -39,11 +39,7 @@ fn serve_once(reply: impl FnOnce(String) -> Vec<u8> + Send + 'static) -> String 
 }
 
 fn http(status: &str, content_type: &str, body: &[u8]) -> Vec<u8> {
-    let mut out = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-        body.len()
-    )
-    .into_bytes();
+    let mut out = format!("HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).into_bytes();
     out.extend_from_slice(body);
     out
 }
@@ -60,10 +56,7 @@ fn spec(method: &str, url: &str) -> RequestSpec {
 async fn sends_method_headers_and_body_and_reads_the_answer() {
     let addr = serve_once(|request| http("201 Created", "text/plain", request.as_bytes()));
     let mut s = spec("post", &format!("{addr}/api/orders"));
-    s.headers = vec![
-        Header { name: "X-Run".into(), value: "42".into() },
-        Header { name: "  ".into(), value: "empty rows are skipped".into() },
-    ];
+    s.headers = vec![Header { name: "X-Run".into(), value: "42".into() }, Header { name: "  ".into(), value: "empty rows are skipped".into() }];
     s.body = Some(r#"{"qty":2}"#.into());
 
     let res = send(&s, &opts()).await.unwrap();
@@ -153,10 +146,7 @@ async fn fills_in_variables_and_hides_secrets_the_server_echoes() {
         name: "Local".into(),
         production: false,
         network: Default::default(),
-        vars: vec![
-            Var { name: "base".into(), value: addr, secret: false },
-            Var { name: "token".into(), value: String::new(), secret: true },
-        ],
+        vars: vec![Var { name: "base".into(), value: addr, secret: false }, Var { name: "token".into(), value: String::new(), secret: true }],
     };
     let mut s = spec("GET", "{{base}}/me?key={{token}}");
     s.headers = vec![Header { name: "Authorization".into(), value: "Bearer {{token}}".into() }];
@@ -186,4 +176,37 @@ async fn splits_the_time_into_lookup_connect_waiting_and_download() {
     assert!(t.connect_ms < 100, "{t:?}");
     assert!(t.dns_ms < 1000, "{t:?}");
     assert!(t.total_ms >= t.dns_ms + t.connect_ms + t.waiting_ms, "{t:?}");
+}
+
+fn with_policy(toml: &str) -> SendOptions {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("policy.toml");
+    std::fs::write(&path, toml).unwrap();
+    SendOptions { policy: std::sync::Arc::new(crane_core::policy::Policy::load(&path)), ..opts() }
+}
+
+#[tokio::test]
+async fn the_policy_decides_where_requests_may_go() {
+    let only_local = with_policy(
+        r#"allowed_hosts = ["127.0.0.1"]
+contact = "it@example.com""#,
+    );
+    let err = send(&spec("GET", "https://api.github.com/zen"), &only_local).await.unwrap_err();
+    assert_eq!(err.to_string(), "Sending to api.github.com is turned off by your organisation's policy. Ask it@example.com if you need it.");
+
+    // A redirect to another host is stopped as well.
+    let addr = serve_once(|_| b"HTTP/1.1 302 Found\r\nLocation: http://example.com/\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_vec());
+    let err = send(&spec("GET", &addr), &only_local).await.unwrap_err();
+    assert!(matches!(&err, SendError::Blocked(m) if m.contains("example.com")), "{err:?}");
+
+    let addr = serve_once(|_| http("200 OK", "text/plain", b"fine"));
+    assert_eq!(send(&spec("GET", &addr), &only_local).await.unwrap().body.as_deref(), Some("fine"));
+}
+
+#[tokio::test]
+async fn the_policy_can_forbid_skipping_certificate_checks() {
+    let mut strict = with_policy("allow_insecure_tls = false");
+    strict.network.insecure = true;
+    let err = send(&spec("GET", "https://localhost:1/"), &strict).await.unwrap_err();
+    assert!(err.to_string().contains("Skipping certificate checks is turned off"), "{err}");
 }

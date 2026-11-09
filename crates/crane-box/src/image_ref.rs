@@ -67,7 +67,11 @@ impl ImageRef {
 impl fmt::Display for ImageRef {
     /// The short form people type: `postgres:16`, `ghcr.io/org/app:1.0`.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let repo = if self.registry == DOCKER_HUB { self.repository.strip_prefix("library/").unwrap_or(&self.repository).to_string() } else { format!("{}/{}", self.registry, self.repository) };
+        let repo = if self.registry == DOCKER_HUB {
+            self.repository.strip_prefix("library/").unwrap_or(&self.repository).to_string()
+        } else {
+            format!("{}/{}", self.registry, self.repository)
+        };
         let sep = if self.reference.starts_with("sha256:") { '@' } else { ':' };
         write!(f, "{repo}{sep}{}", self.reference)
     }

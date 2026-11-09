@@ -189,8 +189,7 @@ impl StackFile {
         let mut done: Vec<&Service> = Vec::new();
         let mut left: Vec<&Service> = self.services.iter().collect();
         while !left.is_empty() {
-            let (ready, wait): (Vec<&Service>, Vec<&Service>) =
-                left.into_iter().partition(|s| s.depends_on.iter().all(|d| done.iter().any(|x| &x.name == d)));
+            let (ready, wait): (Vec<&Service>, Vec<&Service>) = left.into_iter().partition(|s| s.depends_on.iter().all(|d| done.iter().any(|x| &x.name == d)));
             if ready.is_empty() {
                 let names: Vec<&str> = wait.iter().map(|s| s.name.as_str()).collect();
                 return Err(format!("These services wait for each other in a circle: {}.", names.join(", ")));
@@ -290,8 +289,14 @@ image = "redis:7"
         assert!(check("[[service]]\nname = \"Db\"\nimage = \"pg\"").contains("not a usable service name"));
         assert!(check("[[service]]\nname = \"a\"\nimage = \"x\"\ndepends_on = [\"b\"]").contains("which is not in crane.toml"));
         assert!(check("[[service]]\nname = \"a\"\nimage = \"x\"\nports = [\"80\"]").contains("not a port mapping"));
-        assert!(check("[[service]]\nname = \"a\"\nimage = \"x\"\nports = [\"80:80\"]\n[[service]]\nname = \"b\"\nimage = \"y\"\nports = [\"80:81\"]").contains("used twice"));
-        assert!(check("[[service]]\nname = \"a\"\nimage = \"x\"\ndepends_on = [\"b\"]\n[[service]]\nname = \"b\"\nimage = \"y\"\ndepends_on = [\"a\"]").contains("in a circle"));
+        assert!(
+            check("[[service]]\nname = \"a\"\nimage = \"x\"\nports = [\"80:80\"]\n[[service]]\nname = \"b\"\nimage = \"y\"\nports = [\"80:81\"]")
+                .contains("used twice")
+        );
+        assert!(
+            check("[[service]]\nname = \"a\"\nimage = \"x\"\ndepends_on = [\"b\"]\n[[service]]\nname = \"b\"\nimage = \"y\"\ndepends_on = [\"a\"]")
+                .contains("in a circle")
+        );
         assert!(check("[[service]]\nname = \"a\"\nimage = \"x\"\nready = { timeout = 5 }").contains("needs a port, http or log"));
         assert!(check("[[service]]\nname = \"a\"\nimage = \"x\"\nvolumes = [\"/etc:/etc\"]").contains("inside the collection's folder"));
     }
@@ -473,10 +478,7 @@ pub mod run {
             }
             if started.elapsed() > timeout {
                 let log = last_lines(&engine.log_tail(pod_name, service, 16 * 1024));
-                return Err(BoxError::Runtime(format!(
-                    "{service} was not ready after {} seconds. Its last lines:\n{log}",
-                    timeout.as_secs()
-                )));
+                return Err(BoxError::Runtime(format!("{service} was not ready after {} seconds. Its last lines:\n{log}", timeout.as_secs())));
             }
             tokio::time::sleep(POLL).await;
         }

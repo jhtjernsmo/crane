@@ -93,7 +93,7 @@ function VarRow({ v, stored, typed, onChange, onTyped, onRemove, isBlank }: {
   )
 }
 
-export function EnvEditor({ envs, onClose }: { envs: Environments; onClose: () => void }) {
+export function EnvEditor({ envs, onClose, insecureOff = null }: { envs: Environments; onClose: () => void; insecureOff?: string | null }) {
   const [list, setList] = useState<EditEnv[]>(() =>
     envs.list.environments.map((e) => ({ ...e, network: e.network ?? NO_NETWORK, vars: e.vars.map((v) => editVar(v.name, v.value, v.secret, v.name)) })),
   )
@@ -233,6 +233,7 @@ export function EnvEditor({ envs, onClose }: { envs: Environments; onClose: () =
               <NetworkFields
                 network={env.network}
                 production={env.production}
+                insecureOff={insecureOff}
                 onChange={(network) => updateEnv({ network })}
               />
               <div className="row-gap">

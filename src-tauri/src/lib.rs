@@ -36,6 +36,8 @@ pub struct AppState {
     collection: Mutex<Option<Collection>>,
     settings_path: PathBuf,
     history_path: PathBuf,
+    /// The organisation's rules (crane_core::policy), read once at start.
+    pub(crate) policy: Arc<crane_core::policy::Policy>,
 }
 
 impl AppState {
@@ -125,6 +127,9 @@ async fn read_request(state: State<'_, AppState>, path: String) -> Result<ReadRe
 /// findings go back to the UI so it can offer to move them to the keyring.
 #[tauri::command]
 async fn save_request(state: State<'_, AppState>, path: String, request: SavedRequest, allow_secrets: bool) -> Result<SaveResult, String> {
+    if allow_secrets && !state.policy.allow_saving_secrets {
+        return Err(state.policy.refusal("Saving a secret in a file"));
+    }
     state.collection()?.save(&path, &request, allow_secrets).map_err(|e| e.to_string())
 }
 
@@ -154,7 +159,7 @@ async fn run_collection(
         env,
         store: store.as_ref(),
         vars: vec![],
-        send: SendOptions { timeout: REQUEST_TIMEOUT, ..SendOptions::default() },
+        send: SendOptions { timeout: REQUEST_TIMEOUT, policy: Arc::clone(&state.policy), ..SendOptions::default() },
         bail: false,
     };
     Ok(crane_core::runner::run(&col, &paths, opts, |_| {}).await)
@@ -195,11 +200,8 @@ async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> 
 async fn env_list(state: &AppState) -> Result<EnvList, String> {
     let file = state.envs();
     let store = Arc::clone(&state.secrets);
-    let names: Vec<(String, String)> = file
-        .environments
-        .iter()
-        .flat_map(|e| e.vars.iter().filter(|v| v.secret).map(move |v| (e.id.clone(), v.name.clone())))
-        .collect();
+    let names: Vec<(String, String)> =
+        file.environments.iter().flat_map(|e| e.vars.iter().filter(|v| v.secret).map(move |v| (e.id.clone(), v.name.clone()))).collect();
     let (secrets_set, keyring_problem) = blocking(move || {
         let mut set = Vec::new();
         for (id, name) in names {
@@ -226,11 +228,12 @@ async fn list_environments(state: State<'_, AppState>) -> Result<EnvList, String
 async fn save_environments(state: State<'_, AppState>, file: EnvFile) -> Result<EnvList, String> {
     let file = file.without_secret_values();
     file.validate().map_err(|e| e.to_string())?;
+    if !state.policy.allow_insecure_tls && file.environments.iter().any(|e| e.network.insecure) {
+        return Err(state.policy.refusal("Skipping certificate checks"));
+    }
     let dropped = state.envs().secrets_dropped_by(&file);
     let store = Arc::clone(&state.secrets);
-    blocking(move || dropped.iter().try_for_each(|(id, name)| store.delete(id, name)))
-        .await?
-        .map_err(|e| format!("Could not clean up the keyring: {e}"))?;
+    blocking(move || dropped.iter().try_for_each(|(id, name)| store.delete(id, name))).await?.map_err(|e| format!("Could not clean up the keyring: {e}"))?;
     file.save(&state.env_path).map_err(|e| e.to_string())?;
     *state.envs.lock().expect("environments lock") = file;
     env_list(&state).await
@@ -285,7 +288,7 @@ async fn send_request(
     })
     .await?
     .map_err(|e| e.to_string())?;
-    let opts = SendOptions { timeout: REQUEST_TIMEOUT, network: resolved.network.clone(), ..SendOptions::default() };
+    let opts = SendOptions { timeout: REQUEST_TIMEOUT, network: resolved.network.clone(), policy: Arc::clone(&state.policy), ..SendOptions::default() };
     match crane_core::send(&resolved.spec, &opts).await {
         Ok(res) => {
             let checks = crane_core::runner::run_checks(&expect.unwrap_or_default(), &res, &values, &resolved.secrets);
@@ -298,18 +301,30 @@ async fn send_request(
 /// Newest last. Bodies of answers are never kept.
 #[tauri::command]
 async fn history_list(state: State<'_, AppState>) -> Result<Vec<HistoryEntry>, String> {
+    if !state.policy.keep_history {
+        return Ok(Vec::new());
+    }
     Ok(history::load(&state.history_path))
 }
 
 /// Returns the entry as written, after secrets were replaced.
 #[tauri::command]
 async fn history_add(state: State<'_, AppState>, entry: HistoryEntry) -> Result<HistoryEntry, String> {
+    if !state.policy.keep_history {
+        return Ok(history::scrub(entry));
+    }
     history::append(&state.history_path, entry)
 }
 
 #[tauri::command]
 async fn history_clear(state: State<'_, AppState>) -> Result<(), String> {
     history::clear(&state.history_path)
+}
+
+/// The rules in force, so the UI can hide what is turned off.
+#[tauri::command]
+async fn get_policy(state: State<'_, AppState>) -> Result<crane_core::policy::Policy, String> {
+    Ok((*state.policy).clone())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -324,7 +339,8 @@ pub fn run() {
             let collection = load_settings(&settings_path).collection.and_then(|p| Collection::open(&p).ok());
             // A damaged file is reported and left alone, never overwritten with nothing.
             let envs = EnvFile::load(&env_path).map_err(|e| e.to_string())?;
-            app.manage(boxes::Boxes::new(data_dir.join("containers")));
+            let policy = Arc::new(crane_core::policy::Policy::load_system());
+            app.manage(boxes::Boxes::new(data_dir.join("containers"), Arc::clone(&policy)));
             app.manage(AppState {
                 envs: Mutex::new(envs),
                 env_path,
@@ -332,6 +348,7 @@ pub fn run() {
                 collection: Mutex::new(collection),
                 settings_path,
                 history_path,
+                policy,
             });
             Ok(())
         })
@@ -353,6 +370,7 @@ pub fn run() {
             history_add,
             history_clear,
             pick_cert_file,
+            get_policy,
             boxes::box_status,
             boxes::box_pull,
             boxes::box_remove_image,

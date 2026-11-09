@@ -1,0 +1,112 @@
+name: Release
+
+# Push a tag like v0.2.0 to build Crane for Linux, macOS and Windows and
+# publish a draft release with installers, crane-cli, checksums, SBOMs and
+# build provenance attestations.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  app:
+    name: App (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x86_64
+            os: ubuntu-24.04
+            cli: crane-cli
+          - name: macOS Apple silicon
+            os: macos-14
+            cli: crane-cli
+          - name: Windows x86_64
+            os: windows-2022
+            cli: crane-cli.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: System packages for Tauri
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+        working-directory: ui
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build the app and attach it to a draft release
+        id: tauri
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tauriScript: npx --prefix ui tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: Crane ${{ github.ref_name }}
+          releaseBody: See CHANGELOG.md. Verify a download with `gh attestation verify <file> --repo ${{ github.repository }}`.
+          releaseDraft: true
+      - name: Build crane-cli
+        run: cargo build -p crane-cli --release --locked
+      - name: Name crane-cli for this platform
+        id: cli
+        shell: bash
+        run: |
+          suffix="$(echo '${{ matrix.name }}' | tr '[:upper:] ' '[:lower:]-')"
+          ext="${{ matrix.cli }}"; ext="${ext#crane-cli}"
+          out="crane-cli-${suffix}${ext}"
+          cp "target/release/${{ matrix.cli }}" "$out"
+          echo "file=$out" >> "$GITHUB_OUTPUT"
+      - name: Attest where the files came from
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            ${{ steps.cli.outputs.file }}
+            target/release/bundle/**/*.AppImage
+            target/release/bundle/**/*.deb
+            target/release/bundle/**/*.dmg
+            target/release/bundle/**/*.msi
+            target/release/bundle/**/*.exe
+      - name: Attach crane-cli
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" "${{ steps.cli.outputs.file }}" --clobber
+
+  sbom:
+    name: SBOMs and checksums
+    needs: app
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-cyclonedx
+      - name: List every dependency (CycloneDX)
+        run: |
+          cargo cyclonedx --format json --all
+          mkdir sbom
+          find . -name '*.cdx.json' -not -path './sbom/*' -exec cp {} sbom/ \;
+          (cd ui && npm ci --ignore-scripts && npm sbom --sbom-format cyclonedx > ../sbom/ui.cdx.json)
+      - name: Checksums of everything in the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir assets
+          gh release download "${{ github.ref_name }}" --dir assets
+          (cd assets && sha256sum * > ../SHA256SUMS)
+          tar czf sbom.tar.gz sbom
+          gh release upload "${{ github.ref_name }}" SHA256SUMS sbom.tar.gz --clobber

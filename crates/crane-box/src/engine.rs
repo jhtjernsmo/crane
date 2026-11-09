@@ -83,11 +83,7 @@ pub fn valid_name(name: &str) -> bool {
 }
 
 fn check_name(what: &str, name: &str) -> Result<()> {
-    if valid_name(name) {
-        Ok(())
-    } else {
-        Err(BoxError::BadInput(format!("\"{name}\" is not a usable {what} name: use lowercase letters, digits, - and _.")))
-    }
+    if valid_name(name) { Ok(()) } else { Err(BoxError::BadInput(format!("\"{name}\" is not a usable {what} name: use lowercase letters, digits, - and _."))) }
 }
 
 fn now_secs() -> u64 {
@@ -238,7 +234,8 @@ impl Engine {
     /// Starts an empty pod: a user and network namespace to put containers in.
     pub async fn start_pod(&self, name: &str) -> Result<Pod> {
         check_name("pod", name)?;
-        let (ours, theirs) = socketpair(AddressFamily::Unix, SockType::SeqPacket, None, SockFlag::SOCK_CLOEXEC).map_err(|e| BoxError::Runtime(e.to_string()))?;
+        let (ours, theirs) =
+            socketpair(AddressFamily::Unix, SockType::SeqPacket, None, SockFlag::SOCK_CLOEXEC).map_err(|e| BoxError::Runtime(e.to_string()))?;
         let timeout = TimeVal::new(REPLY_TIMEOUT.as_secs() as i64, 0);
         setsockopt(&ours, sockopt::ReceiveTimeout, &timeout).map_err(|e| BoxError::Runtime(e.to_string()))?;
         let mut cmd = self.helper.command("pod");
@@ -433,9 +430,9 @@ impl Drop for Forward {
 
 pub async fn forward(pod: Arc<Pod>, host_port: u16, container_port: u16) -> Result<Forward> {
     // Only this computer: a test stack is not for the rest of the network.
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", host_port)).await.map_err(|e| {
-        BoxError::Runtime(format!("Port {host_port} on this computer is taken or not allowed ({e}). Pick another in the ports list."))
-    })?;
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", host_port))
+        .await
+        .map_err(|e| BoxError::Runtime(format!("Port {host_port} on this computer is taken or not allowed ({e}). Pick another in the ports list.")))?;
     let host_port = listener.local_addr()?.port();
     let task = tokio::spawn(async move {
         while let Ok((mut outside, _)) = listener.accept().await {

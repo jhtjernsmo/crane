@@ -4,10 +4,10 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
 use std::thread;
 
+use crane_core::SendOptions;
 use crane_core::collection::Collection;
 use crane_core::env::{Environment, MemorySecrets, Var};
 use crane_core::runner::{RunOptions, request_paths, run};
-use crane_core::SendOptions;
 
 const TOKEN: &str = "tk-secret-123";
 
@@ -59,17 +59,33 @@ fn write(dir: &std::path::Path, name: &str, text: &str) {
 async fn runs_a_collection_in_order_with_saved_values_and_checks() {
     let base = api();
     let dir = tempfile::tempdir().unwrap();
-    write(dir.path(), "01-login.http", "# @name Log in\n# @crane body=json\n# @expect status 200\n# @save token = json $.token\nPOST {{base}}/login\n\n{\"user\":\"ada\"}\n");
-    write(dir.path(), "02-me.http", "# @name Who am I\n# @expect json $.name = Ada\n# @expect json $.echo = nope\n# @expect json $.echo = {{token}}\nGET {{base}}/me\nAuthorization: Bearer {{token}}\n");
+    write(
+        dir.path(),
+        "01-login.http",
+        "# @name Log in\n# @crane body=json\n# @expect status 200\n# @save token = json $.token\nPOST {{base}}/login\n\n{\"user\":\"ada\"}\n",
+    );
+    write(
+        dir.path(),
+        "02-me.http",
+        "# @name Who am I\n# @expect json $.name = Ada\n# @expect json $.echo = nope\n# @expect json $.echo = {{token}}\nGET {{base}}/me\nAuthorization: Bearer {{token}}\n",
+    );
     write(dir.path(), "03-missing.http", "GET {{base}}/missing\n");
     let col = Collection::open(dir.path()).unwrap();
     let paths = request_paths(&col.tree().unwrap());
     assert_eq!(paths, ["01-login.http", "02-me.http", "03-missing.http"]);
 
-    let env = Environment { id: "local".into(), name: "Local".into(), production: false, vars: vec![Var { name: "base".into(), value: base, secret: false }], network: Default::default() };
+    let env = Environment {
+        id: "local".into(),
+        name: "Local".into(),
+        production: false,
+        vars: vec![Var { name: "base".into(), value: base, secret: false }],
+        network: Default::default(),
+    };
     let store = MemorySecrets::default();
     let mut seen = Vec::new();
-    let report = run(&col, &paths, RunOptions { env: Some(env), store: &store, vars: vec![], send: SendOptions::default(), bail: false }, |o| seen.push(o.name.clone())).await;
+    let report =
+        run(&col, &paths, RunOptions { env: Some(env), store: &store, vars: vec![], send: SendOptions::default(), bail: false }, |o| seen.push(o.name.clone()))
+            .await;
 
     assert_eq!(seen, ["Log in", "Who am I", "03-missing"]);
     let [login, me, missing] = &report.outcomes[..] else { panic!("{report:?}") };

@@ -49,12 +49,7 @@ impl ImageConfig {
             env: c.env.unwrap_or_default(),
             working_dir: c.working_dir.unwrap_or_default(),
             user: c.user.unwrap_or_default(),
-            exposed_ports: c
-                .exposed_ports
-                .unwrap_or_default()
-                .keys()
-                .filter_map(|k| k.strip_suffix("/tcp").unwrap_or(k).parse().ok())
-                .collect(),
+            exposed_ports: c.exposed_ports.unwrap_or_default().keys().filter_map(|k| k.strip_suffix("/tcp").unwrap_or(k).parse().ok()).collect(),
         })
     }
 

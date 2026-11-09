@@ -1,7 +1,7 @@
 // Stand-in for the Rust side when the UI runs in a plain browser (npm run dev)
 // or in tests. Everything lives in memory and is gone on reload; the real app
 // keeps plain values in a file and secrets in the system keyring.
-import type { BoxStatus, CheckResult, CollectionView, Report, StackEvent, StackInfo, EnvFile, EnvList, Finding, HistoryEntry, ImageView, PortMap, PullProgress, ReadRequest, RunRequest, RequestSpec, Response, SaveResult, SavedRequest, TreeNode } from './api'
+import type { BoxStatus, CheckResult, Policy, CollectionView, Report, StackEvent, StackInfo, EnvFile, EnvList, Finding, HistoryEntry, ImageView, PortMap, PullProgress, ReadRequest, RunRequest, RequestSpec, Response, SaveResult, SavedRequest, TreeNode } from './api'
 import { check } from './checks'
 import { looksLikeSecret } from './secretScan'
 import { fillVars, findVars, listVars } from './vars'
@@ -369,3 +369,14 @@ export async function runCollection(
   }
   return { outcomes, elapsedMs: Date.now() - started }
 }
+
+// ---- Policy -------------------------------------------------------------------
+
+let policy: Policy | null = null
+
+export function resetPolicy(start: Policy | null = null) {
+  policy = start ? structuredClone(start) : null
+}
+
+export const getPolicy = (): Policy =>
+  policy ?? { contact: null, allowedHosts: null, blockedHosts: [], allowSavingSecrets: true, allowInsecureTls: true, containers: true, keepHistory: true, source: null, problem: null }

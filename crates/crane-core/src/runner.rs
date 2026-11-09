@@ -105,7 +105,8 @@ impl SecretStore for RunStore<'_> {
 
 /// The environment plus this run's values, which override and are secret.
 fn with_run_vars(env: &Option<Environment>, run: &HashMap<String, String>) -> Environment {
-    let mut e = env.clone().unwrap_or(Environment { id: NO_ENV.into(), name: "no environment".into(), production: false, vars: vec![], network: Default::default() });
+    let mut e =
+        env.clone().unwrap_or(Environment { id: NO_ENV.into(), name: "no environment".into(), production: false, vars: vec![], network: Default::default() });
     for name in run.keys() {
         e.vars.retain(|v| &v.name != name);
         e.vars.push(Var { name: name.clone(), value: String::new(), secret: true });
@@ -143,7 +144,17 @@ async fn run_one(
     run_vars: &HashMap<String, String>,
     base: &SendOptions,
 ) -> (Outcome, Vec<(String, String)>) {
-    let mut out = Outcome { path: path.into(), name: path.into(), method: String::new(), status: None, total_ms: None, error: None, checks: vec![], saved: vec![], passed: false };
+    let mut out = Outcome {
+        path: path.into(),
+        name: path.into(),
+        method: String::new(),
+        status: None,
+        total_ms: None,
+        error: None,
+        checks: vec![],
+        saved: vec![],
+        passed: false,
+    };
     let saved_req = match col.read(path) {
         Ok(r) => r.request,
         Err(e) => {

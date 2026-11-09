@@ -61,12 +61,20 @@ pub struct ContainerState {
 #[serde(rename_all = "camelCase", rename_all_fields = "camelCase", tag = "reply")]
 pub enum Reply {
     /// The pod is up; `full_mapping` says whether other users inside work.
-    Ready { full_mapping: bool },
+    Ready {
+        full_mapping: bool,
+    },
     Ok,
-    Started { pid: i32 },
+    Started {
+        pid: i32,
+    },
     Connected,
-    Status { containers: Vec<ContainerState> },
-    Error { message: String },
+    Status {
+        containers: Vec<ContainerState>,
+    },
+    Error {
+        message: String,
+    },
 }
 
 #[cfg(test)]

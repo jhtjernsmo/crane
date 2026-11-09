@@ -33,7 +33,8 @@ pub fn render(suite: &str, r: &Report) -> String {
             continue;
         }
         let mut lines: Vec<String> = o.error.iter().cloned().collect();
-        lines.extend(o.checks.iter().filter(|c| !c.passed).map(|c| format!("{}{}", c.check, c.detail.as_deref().map(|d| format!(": {d}")).unwrap_or_default())));
+        lines
+            .extend(o.checks.iter().filter(|c| !c.passed).map(|c| format!("{}{}", c.check, c.detail.as_deref().map(|d| format!(": {d}")).unwrap_or_default())));
         if lines.is_empty() {
             lines.push(format!("answered {}", o.status.map_or("nothing".into(), |s| s.to_string())));
         }
@@ -51,7 +52,17 @@ mod tests {
 
     #[test]
     fn writes_passes_and_failures() {
-        let ok = Outcome { path: "a.http".into(), name: "A".into(), method: "GET".into(), status: Some(200), total_ms: Some(12), error: None, checks: vec![], saved: vec![], passed: true };
+        let ok = Outcome {
+            path: "a.http".into(),
+            name: "A".into(),
+            method: "GET".into(),
+            status: Some(200),
+            total_ms: Some(12),
+            error: None,
+            checks: vec![],
+            saved: vec![],
+            passed: true,
+        };
         let bad = Outcome {
             path: "b<&>.http".into(),
             checks: vec![CheckResult { check: "status 200".into(), passed: false, detail: Some("got 500".into()) }],

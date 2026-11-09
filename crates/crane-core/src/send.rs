@@ -7,9 +7,27 @@ use reqwest::Method;
 use serde::Serialize;
 
 use crate::client::timed_builder;
+use std::sync::Arc;
+
 use crate::network::Network;
+use crate::policy::Policy;
 use crate::vars::mask;
 use crate::{Header, RequestSpec, SendError, normalize_url};
+
+/// Redirects followed before giving up, as browsers do.
+const MAX_REDIRECTS: usize = 10;
+
+/// A redirect that was stopped, with the sentence to show for it.
+#[derive(Debug)]
+struct Refused(String);
+
+impl std::fmt::Display for Refused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for Refused {}
 
 /// Bodies bigger than this are cut when shown; `size` still has the full length.
 pub const MAX_SHOWN_BYTES: usize = 2 * 1024 * 1024;
@@ -50,28 +68,49 @@ pub struct SendOptions {
     pub user_agent: String,
     /// Certificates and proxy, from the environment, variables filled in.
     pub network: Network,
+    /// The organisation's rules: which hosts, and whether certificate
+    /// checks may be skipped. Checked here, for the first address and for
+    /// every redirect.
+    pub policy: Arc<Policy>,
 }
 
 impl Default for SendOptions {
     fn default() -> Self {
-        Self { timeout: Duration::from_secs(30), user_agent: concat!("Crane/", env!("CARGO_PKG_VERSION")).into(), network: Network::default() }
+        Self {
+            timeout: Duration::from_secs(30),
+            user_agent: concat!("Crane/", env!("CARGO_PKG_VERSION")).into(),
+            network: Network::default(),
+            policy: Arc::new(Policy::default()),
+        }
     }
 }
 
 pub async fn send(spec: &RequestSpec, opts: &SendOptions) -> Result<Response, SendError> {
     let timeout = opts.timeout;
+    if opts.network.insecure && !opts.policy.allow_insecure_tls {
+        return Err(SendError::Blocked(opts.policy.refusal("Skipping certificate checks")));
+    }
     let (builder, phases) = timed_builder(&opts.user_agent);
-    let client = opts.network.apply(builder).await?.build().map_err(|e| SendError::Other(last_cause(&e)))?;
+    let policy = Arc::clone(&opts.policy);
+    let redirects = reqwest::redirect::Policy::custom(move |attempt| {
+        if attempt.previous().len() >= MAX_REDIRECTS {
+            attempt.error(Refused(format!("More than {MAX_REDIRECTS} redirects.")))
+        } else if let Err(why) = policy.check_url(attempt.url()) {
+            attempt.error(Refused(why))
+        } else {
+            attempt.follow()
+        }
+    });
+    let client = opts.network.apply(builder.redirect(redirects)).await?.build().map_err(|e| SendError::Other(last_cause(&e)))?;
     let url = normalize_url(&spec.url)?;
     let parsed = reqwest::Url::parse(&url).map_err(|_| SendError::BadUrl(spec.url.trim().to_string()))?;
     let place = place_of(&parsed);
-    let method = Method::from_bytes(spec.method.trim().to_ascii_uppercase().as_bytes())
-        .map_err(|_| SendError::BadMethod(spec.method.clone()))?;
+    opts.policy.check_url(&parsed).map_err(SendError::Blocked)?;
+    let method = Method::from_bytes(spec.method.trim().to_ascii_uppercase().as_bytes()).map_err(|_| SendError::BadMethod(spec.method.clone()))?;
 
     let mut builder = client.request(method, parsed).timeout(timeout);
     for h in spec.headers.iter().filter(|h| !h.name.trim().is_empty()) {
-        let name = reqwest::header::HeaderName::from_bytes(h.name.trim().as_bytes())
-            .map_err(|_| SendError::BadHeader(h.name.clone()))?;
+        let name = reqwest::header::HeaderName::from_bytes(h.name.trim().as_bytes()).map_err(|_| SendError::BadHeader(h.name.clone()))?;
         let value = reqwest::header::HeaderValue::from_str(&h.value).map_err(|_| SendError::BadHeader(h.name.clone()))?;
         builder = builder.header(name, value);
     }
@@ -84,11 +123,8 @@ pub async fn send(spec: &RequestSpec, opts: &SendOptions) -> Result<Response, Se
     let headers_at = Instant::now();
     let status = res.status();
     let final_url = res.url().to_string();
-    let headers = res
-        .headers()
-        .iter()
-        .map(|(k, v)| Header { name: k.as_str().to_string(), value: String::from_utf8_lossy(v.as_bytes()).into_owned() })
-        .collect();
+    let headers =
+        res.headers().iter().map(|(k, v)| Header { name: k.as_str().to_string(), value: String::from_utf8_lossy(v.as_bytes()).into_owned() }).collect();
     let bytes = res.bytes().await.map_err(|e| explain(&e, &place, timeout))?;
     let done = Instant::now();
 
@@ -150,6 +186,14 @@ fn place_of(url: &reqwest::Url) -> String {
 /// reqwest's errors say what failed deep down ("tcp connect error: Connection
 /// refused (os error 111)"). Look through the chain and say it plainly.
 fn explain(e: &reqwest::Error, place: &str, timeout: Duration) -> SendError {
+    // A redirect we stopped says why itself.
+    let mut source: Option<&dyn std::error::Error> = Some(e);
+    while let Some(err) = source {
+        if let Some(r) = err.downcast_ref::<Refused>() {
+            return SendError::Blocked(r.0.clone());
+        }
+        source = err.source();
+    }
     if e.is_timeout() {
         return SendError::TimedOut(place.to_string(), timeout.as_secs());
     }

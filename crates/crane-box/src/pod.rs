@@ -172,10 +172,8 @@ fn handle(control: &OwnedFd, req: Request, boxes: &mut HashMap<String, Running>,
         }
         Request::Status => {
             reap(boxes);
-            let mut containers: Vec<ContainerState> = boxes
-                .iter()
-                .map(|(name, b)| ContainerState { name: name.clone(), pid: b.pid.as_raw(), running: b.running, exit_code: b.exit_code })
-                .collect();
+            let mut containers: Vec<ContainerState> =
+                boxes.iter().map(|(name, b)| ContainerState { name: name.clone(), pid: b.pid.as_raw(), running: b.running, exit_code: b.exit_code }).collect();
             containers.sort_by(|a, b| a.name.cmp(&b.name));
             reply(Reply::Status { containers }, None);
         }
@@ -396,7 +394,8 @@ fn enter_root(spec: &RunSpec) -> Result<(), String> {
 /// host name and the hosts file.
 fn fill_root(spec: &RunSpec) -> Result<(), String> {
     let nosuid = MsFlags::MS_NOSUID | MsFlags::MS_NODEV | MsFlags::MS_NOEXEC;
-    for (link, to) in [("/dev/fd", "/proc/self/fd"), ("/dev/stdin", "/proc/self/fd/0"), ("/dev/stdout", "/proc/self/fd/1"), ("/dev/stderr", "/proc/self/fd/2")] {
+    for (link, to) in [("/dev/fd", "/proc/self/fd"), ("/dev/stdin", "/proc/self/fd/0"), ("/dev/stdout", "/proc/self/fd/1"), ("/dev/stderr", "/proc/self/fd/2")]
+    {
         let _ = std::os::unix::fs::symlink(to, link);
     }
     let _ = fs::create_dir_all("/dev/pts");
@@ -421,10 +420,13 @@ fn fill_root(spec: &RunSpec) -> Result<(), String> {
 fn open_in_root(root: &OwnedFd, target: &Path, dir: bool) -> Result<OwnedFd, String> {
     let how = || OpenHow::new().flags(OFlag::O_PATH | OFlag::O_CLOEXEC).resolve(ResolveFlag::RESOLVE_IN_ROOT | ResolveFlag::RESOLVE_NO_MAGICLINKS);
     let fail = |what: &str, e: nix::Error| format!("Could not {what} {} in the container ({}).", target.display(), e.desc());
-    let parts: Vec<&std::ffi::OsStr> = target.components().filter_map(|c| match c {
-        Component::Normal(p) => Some(p),
-        _ => None,
-    }).collect();
+    let parts: Vec<&std::ffi::OsStr> = target
+        .components()
+        .filter_map(|c| match c {
+            Component::Normal(p) => Some(p),
+            _ => None,
+        })
+        .collect();
     let mut so_far = PathBuf::new();
     for (i, name) in parts.iter().enumerate() {
         let next = so_far.join(name);
@@ -433,10 +435,19 @@ fn open_in_root(root: &OwnedFd, target: &Path, dir: bool) -> Result<OwnedFd, Str
             Ok(fd) if last => return Ok(fd),
             Ok(_) => {}
             Err(nix::errno::Errno::ENOENT) => {
-                let parent = if so_far.as_os_str().is_empty() { root.try_clone().map_err(|e| e.to_string())? } else { openat2(root, &so_far, how()).map_err(|e| fail("open", e))? };
+                let parent = if so_far.as_os_str().is_empty() {
+                    root.try_clone().map_err(|e| e.to_string())?
+                } else {
+                    openat2(root, &so_far, how()).map_err(|e| fail("open", e))?
+                };
                 if last && !dir {
-                    nix::fcntl::openat(&parent, *name, OFlag::O_CREAT | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC, Mode::from_bits_truncate(0o644))
-                        .map_err(|e| fail("make", e))?;
+                    nix::fcntl::openat(
+                        &parent,
+                        *name,
+                        OFlag::O_CREAT | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+                        Mode::from_bits_truncate(0o644),
+                    )
+                    .map_err(|e| fail("make", e))?;
                 } else {
                     nix::sys::stat::mkdirat(&parent, *name, Mode::from_bits_truncate(0o755)).map_err(|e| fail("make", e))?;
                 }

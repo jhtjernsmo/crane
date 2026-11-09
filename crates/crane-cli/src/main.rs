@@ -121,6 +121,13 @@ async fn run_cli(a: Args) -> Result<bool, String> {
     let mut vars: Vec<(String, String)> = std::env::vars().filter_map(|(k, v)| k.strip_prefix(VAR_PREFIX).map(|n| (n.to_string(), v))).collect();
     vars.extend(a.vars.clone());
 
+    let policy = std::sync::Arc::new(crane_core::policy::Policy::load_system());
+    if let Some(problem) = &policy.problem {
+        eprintln!("crane-cli: {problem} The strictest rules apply.");
+    }
+    if a.stack && !policy.containers {
+        return Err(policy.refusal("Running containers"));
+    }
     let out = output::Printer::new();
     out.header(&col.name(), env.as_ref().map(|e| e.name.as_str()), paths.len());
 
@@ -132,7 +139,13 @@ async fn run_cli(a: Args) -> Result<bool, String> {
     }
 
     let store = store();
-    let opts = RunOptions { env, store: store.as_ref(), vars, send: SendOptions { timeout: Duration::from_secs(a.timeout), ..SendOptions::default() }, bail: a.bail };
+    let opts = RunOptions {
+        env,
+        store: store.as_ref(),
+        vars,
+        send: SendOptions { timeout: Duration::from_secs(a.timeout), policy, ..SendOptions::default() },
+        bail: a.bail,
+    };
     let report = run(&col, &paths, opts, |o| out.outcome(o)).await;
     out.summary(&report);
 

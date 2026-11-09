@@ -4,7 +4,7 @@ import type { Environments } from '../useEnvironments'
 import { isVarName } from '../vars'
 
 /** Shown when Rust refused to write secrets to a file. */
-export function SecretReview({ col, envs }: { col: Collection; envs: Environments }) {
+export function SecretReview({ col, envs, canSaveAnyway }: { col: Collection; envs: Environments; canSaveAnyway: boolean }) {
   const review = col.review
   const [names, setNames] = useState<Record<number, string>>(() => Object.fromEntries((review?.findings ?? []).map((f, i) => [i, f.suggestedName])))
   if (!review) return null
@@ -35,7 +35,7 @@ export function SecretReview({ col, envs }: { col: Collection; envs: Environment
         </p>
         {col.problem && <p className="problem small" role="alert">{col.problem}</p>}
         <div className="dialog-foot">
-          <button type="button" className="link danger" onClick={() => void col.saveAnyway()}>Save with the secret</button>
+          {canSaveAnyway && <button type="button" className="link danger" onClick={() => void col.saveAnyway()}>Save with the secret</button>}
           <span className="push" />
           <button type="button" className="btn-quiet" onClick={col.dismissReview}>Cancel</button>
           <button type="button" className="btn-main" disabled={!env || bad} onClick={() => void col.moveSecrets(names)}>Move to keyring and save</button>

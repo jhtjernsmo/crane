@@ -306,3 +306,5 @@ li.fail .mark { color: var(--bad); }
 .run-report li { border-bottom: 1px solid var(--line); padding: 6px 0; }
 .run-report li > button { width: 100%; text-align: left; }
 .run-report li > p { padding-left: 30px; }
+.managed { font: 500 10.5px 'IBM Plex Mono', monospace; letter-spacing: 0.06em; text-transform: uppercase; color: var(--blue); border: 1px solid currentColor; padding: 1px 6px; margin-left: 4px; cursor: help; }
+.managed.broken { color: var(--bad); }

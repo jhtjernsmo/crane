@@ -62,7 +62,17 @@ pub fn parse(mut it: impl Iterator<Item = String>) -> Result<Command, String> {
         Some(other) => return Err(format!("unknown command \"{other}\"")),
     }
     let mut path = None;
-    let mut a = Args { path: PathBuf::new(), env: None, envs: None, vars: vec![], junit: None, bail: false, stack: false, timeout: DEFAULT_TIMEOUT_SECS, yes_production: false };
+    let mut a = Args {
+        path: PathBuf::new(),
+        env: None,
+        envs: None,
+        vars: vec![],
+        junit: None,
+        bail: false,
+        stack: false,
+        timeout: DEFAULT_TIMEOUT_SECS,
+        yes_production: false,
+    };
     while let Some(arg) = it.next() {
         let mut value = |flag: &str| it.next().ok_or_else(|| format!("{flag} needs a value"));
         match arg.as_str() {

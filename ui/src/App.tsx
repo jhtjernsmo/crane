@@ -22,6 +22,7 @@ import { useBoxes } from './useBoxes'
 import { useCollection } from './useCollection'
 import { useEnvironments } from './useEnvironments'
 import { type Sent, useHistory } from './useHistory'
+import { refusal, usePolicy } from './usePolicy'
 import { findVars } from './vars'
 
 /** Methods that change data, so a production environment asks first. */
@@ -34,6 +35,7 @@ export default function App() {
   const current = history.current
   const [theme, setTheme] = useState<Theme>(loadTheme)
   const envs = useEnvironments()
+  const policy = usePolicy()
   const [editingEnvs, setEditingEnvs] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const col = useCollection(draft, setDraft, envs)
@@ -131,6 +133,14 @@ export default function App() {
           <button role="tab" aria-selected={view === 'containers'} onClick={() => setView('containers')}>Containers</button>
         </div>
         <EnvPicker envs={envs} onEdit={() => setEditingEnvs(true)} />
+        {(policy.source || policy.problem) && (
+          <span
+            className={`managed ${policy.problem ? 'broken' : ''}`}
+            title={policy.problem ?? `Rules from ${policy.source}${policy.contact ? `. Questions: ${policy.contact}` : ''}`}
+          >
+            {policy.problem ? 'policy error: locked down' : 'managed by your organisation'}
+          </span>
+        )}
         <div className="seg push" role="radiogroup" aria-label="Theme">
           {THEMES.map((t) => (
             <button key={t} role="radio" aria-checked={theme === t} onClick={() => setTheme(t)}>{t}</button>
@@ -159,6 +169,7 @@ export default function App() {
           {side === 'requests' && col.problem && !col.review && <p className="problem small side-problem" role="alert">{col.problem}</p>}
           {side === 'history' && (
             <HistoryList
+              off={policy.keepHistory ? null : refusal(policy, 'Saving history')}
               history={history}
               onReopen={reopen}
               onClear={() => setAsk({ title: 'Clear the history?', text: 'Every saved send is removed from this computer.', yes: 'Clear', danger: true, onYes: () => void history.clear() })}
@@ -207,8 +218,8 @@ export default function App() {
         </>
       )}
       {ask && <AskDialog ask={ask} onClose={closeAsk} />}
-      {col.review && <SecretReview key={col.review.path + col.review.findings.length} col={col} envs={envs} />}
-      {editingEnvs && <EnvEditor envs={envs} onClose={closeEnvs} />}
+      {col.review && <SecretReview key={col.review.path + col.review.findings.length} col={col} envs={envs} canSaveAnyway={policy.allowSavingSecrets} />}
+      {editingEnvs && <EnvEditor envs={envs} onClose={closeEnvs} insecureOff={policy.allowInsecureTls ? null : refusal(policy, 'Skipping certificate checks')} />}
       {confirming && envs.active && (
         <ConfirmSend env={envs.active.name} method={spec.method} url={spec.url} onSend={() => void send(true)} onCancel={cancelConfirm} />
       )}

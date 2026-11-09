@@ -104,9 +104,7 @@ impl EnvFile {
         let mut ids = Vec::new();
         let mut names = Vec::new();
         for env in &self.environments {
-            let id_ok = !env.id.is_empty()
-                && env.id.len() <= MAX_ID_LEN
-                && env.id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+            let id_ok = !env.id.is_empty() && env.id.len() <= MAX_ID_LEN && env.id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
             if !id_ok || ids.contains(&&env.id) {
                 return bad(format!("The environment \"{}\" has a broken id. Remove it and add it again.", env.name));
             }
@@ -230,10 +228,8 @@ pub fn resolve(spec: &RequestSpec, env: Option<&Environment>, store: &dyn Secret
             continue;
         };
         if var.secret {
-            let value = store
-                .get(&env.id, &name)
-                .map_err(|e| SendError::Keyring(e.0))?
-                .ok_or_else(|| SendError::SecretNotSet(env.name.clone(), name.clone()))?;
+            let value =
+                store.get(&env.id, &name).map_err(|e| SendError::Keyring(e.0))?.ok_or_else(|| SendError::SecretNotSet(env.name.clone(), name.clone()))?;
             secrets.push((name.clone(), value.clone()));
             values.insert(name, value);
         } else {
@@ -355,10 +351,7 @@ mod tests {
             Err(EnvError::Invalid("There are two environments called \"local\".".into()))
         );
         assert!(check(vec![env("a", "Local", vec![var("2fa", "")])]).unwrap_err().to_string().contains("\"2fa\" in Local"));
-        assert_eq!(
-            check(vec![env("a", "Local", vec![var("x", ""), secret("x")])]),
-            Err(EnvError::Invalid("Local has {{x}} twice.".into()))
-        );
+        assert_eq!(check(vec![env("a", "Local", vec![var("x", ""), secret("x")])]), Err(EnvError::Invalid("Local has {{x}} twice.".into())));
         assert!(check(vec![env("BAD ID", "Local", vec![])]).is_err());
         assert!(EnvFile { active: Some("gone".into()), environments: vec![] }.validate().is_err());
     }
@@ -367,18 +360,9 @@ mod tests {
     fn knows_which_secrets_to_delete_from_the_keyring() {
         let old = EnvFile {
             active: None,
-            environments: vec![
-                env("a", "Local", vec![secret("token"), secret("renamed"), secret("unmarked")]),
-                env("b", "Prod", vec![secret("token")]),
-            ],
+            environments: vec![env("a", "Local", vec![secret("token"), secret("renamed"), secret("unmarked")]), env("b", "Prod", vec![secret("token")])],
         };
-        let new = EnvFile {
-            active: None,
-            environments: vec![env("a", "Local", vec![secret("token"), secret("new_name"), var("unmarked", "")])],
-        };
-        assert_eq!(
-            old.secrets_dropped_by(&new),
-            [("a".into(), "renamed".into()), ("a".into(), "unmarked".into()), ("b".into(), "token".into())]
-        );
+        let new = EnvFile { active: None, environments: vec![env("a", "Local", vec![secret("token"), secret("new_name"), var("unmarked", "")])] };
+        assert_eq!(old.secrets_dropped_by(&new), [("a".into(), "renamed".into()), ("a".into(), "unmarked".into()), ("b".into(), "token".into())]);
     }
 }

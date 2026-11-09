@@ -6,6 +6,8 @@ Open source under the MIT license. Built with Tauri 2 (Rust) and React.
 
 ## Security first
 
+See [SECURITY.md](SECURITY.md) for the threat model, its limits, and how to report a vulnerability. Organisations can lock Crane down with a policy file (allowed hosts, no saving secrets, no skipping certificate checks, no containers, no history); every rule is enforced in Rust.
+
 Crane is built for teams that cannot send their API keys to someone else's cloud.
 
 - No account, no cloud, no telemetry. The app only talks to the addresses you send requests to.
@@ -15,7 +17,7 @@ Crane is built for teams that cannot send their API keys to someone else's cloud
 - Environments marked as production ask before sending anything that changes data.
 - A locked-down Tauri shell (strict CSP, minimal permissions), signed updates and dependency audits in CI.
 
-## What works now (steps 1 to 9)
+## What works now
 
 - Send a request with any method to any address. Leave out `http://` or `https://` and Crane picks: `http://` for `localhost`, `127.*`, `10.*` and `192.168.*`, `https://` for everything else.
 - See the status, time, size, the body (JSON is indented and coloured), the headers, and where the time went: name lookup, connect + TLS, waiting for the server and download. Every send opens a fresh connection, so the numbers are not flattered by a reused one.
@@ -42,7 +44,9 @@ Requests are sent from Rust, not from the webview, so there is no CORS and local
 
 ## Next steps
 
-1. A policy file for IT, a written threat model (SECURITY.md), dependency audits in CI, and signed releases.
+1. A seccomp filter and CPU and memory limits for containers.
+2. Signed automatic updates.
+3. Containers on macOS and Windows (through a small Linux VM).
 
 ## Checks
 

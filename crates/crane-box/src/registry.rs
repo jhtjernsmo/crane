@@ -149,7 +149,8 @@ impl Registry {
             token: Option<String>,
             access_token: Option<String>,
         }
-        let url = reqwest::Url::parse_with_params(&realm, &params).map_err(|e| BoxError::Registry(self.image.to_string(), format!("odd login address ({e})")))?;
+        let url =
+            reqwest::Url::parse_with_params(&realm, &params).map_err(|e| BoxError::Registry(self.image.to_string(), format!("odd login address ({e})")))?;
         if url.scheme() != "https" && self.image.scheme() == "https" {
             return Err(BoxError::Registry(self.image.to_string(), "it wants a login over plain HTTP".into()));
         }

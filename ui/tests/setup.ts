@@ -9,4 +9,5 @@ beforeEach(() => {
   preview.resetHistory()
   preview.resetBoxes()
   preview.resetStack()
+  preview.resetPolicy()
 })

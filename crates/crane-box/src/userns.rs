@@ -63,9 +63,7 @@ pub fn enter() -> Result<Mapping> {
                 ForkResult::Child => {
                     drop(ready_w);
                     let mut b = [0u8; 1];
-                    let ok = fs::File::from(ready_r).read_exact(&mut b).is_ok()
-                        && map(&newuidmap, parent, uid, u)
-                        && map(&newgidmap, parent, gid, g);
+                    let ok = fs::File::from(ready_r).read_exact(&mut b).is_ok() && map(&newuidmap, parent, uid, u) && map(&newgidmap, parent, gid, g);
                     unsafe { nix::libc::_exit(if ok { 0 } else { 1 }) }
                 }
                 ForkResult::Parent { child } => {

@@ -12,7 +12,8 @@ function when(at: Date): string {
   return today ? at.toTimeString().slice(0, 5) : at.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 }
 
-export function HistoryList({ history, onReopen, onClear }: { history: History; onReopen: (s: Sent) => void; onClear: () => void }) {
+export function HistoryList({ history, onReopen, onClear, off }: { history: History; onReopen: (s: Sent) => void; onClear: () => void; off: string | null }) {
+  if (off && history.items.length === 0) return <p className="quiet small pad">{off}</p>
   if (history.items.length === 0) {
     return <p className="quiet small pad">What you send shows up here. Answers are kept until you close Crane; only a summary is saved.</p>
   }

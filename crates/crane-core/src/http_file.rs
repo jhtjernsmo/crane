@@ -229,18 +229,17 @@ pub fn from_http(text: &str, fallback_name: &str) -> Result<ReadRequest, String>
 /// its mode, and the Content-Type the app would add, so a run sends exactly
 /// what the app sends.
 pub fn to_spec(r: &SavedRequest) -> crate::RequestSpec {
-    let mut headers: Vec<crate::Header> =
-        r.headers.iter().filter(|h| h.enabled && !h.name.trim().is_empty()).map(|h| crate::Header { name: h.name.trim().to_string(), value: h.value.clone() }).collect();
+    let mut headers: Vec<crate::Header> = r
+        .headers
+        .iter()
+        .filter(|h| h.enabled && !h.name.trim().is_empty())
+        .map(|h| crate::Header { name: h.name.trim().to_string(), value: h.value.clone() })
+        .collect();
     let has_type = headers.iter().any(|h| h.name.eq_ignore_ascii_case("content-type"));
     if let (false, Some(ct)) = (has_type, content_type_for(&r.body_mode)) {
         headers.push(crate::Header { name: "Content-Type".into(), value: ct.into() });
     }
-    crate::RequestSpec {
-        method: r.method.clone(),
-        url: r.url.clone(),
-        headers,
-        body: (r.body_mode != "none").then(|| r.body.clone()),
-    }
+    crate::RequestSpec { method: r.method.clone(), url: r.url.clone(), headers, body: (r.body_mode != "none").then(|| r.body.clone()) }
 }
 
 #[cfg(test)]
@@ -316,7 +315,10 @@ mod tests {
         r.expect = vec!["status 201".into(), "json $.id exists".into()];
         r.save = vec!["order_id = json $.id".into()];
         let text = to_http(&r);
-        assert!(text.starts_with("# @name Create order\n# @crane body=json\n# @expect status 201\n# @expect json $.id exists\n# @save order_id = json $.id\nPOST"), "{text}");
+        assert!(
+            text.starts_with("# @name Create order\n# @crane body=json\n# @expect status 201\n# @expect json $.id exists\n# @save order_id = json $.id\nPOST"),
+            "{text}"
+        );
         assert_eq!(from_http(&text, "x").unwrap().request, r);
     }
 

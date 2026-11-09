@@ -86,9 +86,13 @@ pub struct Boxes {
 }
 
 impl Boxes {
-    pub fn new(base: std::path::PathBuf) -> Self {
+    pub fn new(base: std::path::PathBuf, policy: Arc<crane_core::policy::Policy>) -> Self {
         #[cfg(target_os = "linux")]
         {
+            // Turned off by policy: no engine at all, so no command can start one.
+            if !policy.containers {
+                return Self { engine: None, running: Mutex::default(), stack: Mutex::default(), problem: Some(policy.refusal("Running containers")) };
+            }
             match crane_box::engine::Helper::this_program() {
                 Ok(helper) => Self { engine: Some(Engine::new(base, helper)), running: Mutex::default(), stack: Mutex::default(), problem: None },
                 Err(e) => Self { engine: None, running: Mutex::default(), stack: Mutex::default(), problem: Some(e.to_string()) },
@@ -96,7 +100,7 @@ impl Boxes {
         }
         #[cfg(not(target_os = "linux"))]
         {
-            let _ = base;
+            let _ = (base, policy);
             Self { problem: Some("Containers run on Linux for now. Mac and Windows need a small virtual machine, which comes later.".into()) }
         }
     }
@@ -325,7 +329,13 @@ pub async fn stack_info(state: State<'_, AppState>, boxes: State<'_, Boxes>) -> 
             services: file
                 .services
                 .iter()
-                .map(|s| StackService { name: s.name.clone(), image: s.image.clone(), ports: s.ports.clone(), volumes: s.volumes.clone(), depends_on: s.depends_on.clone() })
+                .map(|s| StackService {
+                    name: s.name.clone(),
+                    image: s.image.clone(),
+                    ports: s.ports.clone(),
+                    volumes: s.volumes.clone(),
+                    depends_on: s.depends_on.clone(),
+                })
                 .collect(),
             running,
         })

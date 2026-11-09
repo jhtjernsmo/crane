@@ -48,7 +48,11 @@ async fn runs_a_command_in_alpine() {
     assert!(log.contains("offline"), "no internet inside: {log}");
 
     // A user other than root works thanks to the subordinate ids.
-    let opts = ContainerOptions { args: Some(vec!["sh".into(), "-c".into(), "id -u; touch /tmp/x && echo can-write-tmp".into()]), user: Some("nobody".into()), ..Default::default() };
+    let opts = ContainerOptions {
+        args: Some(vec!["sh".into(), "-c".into(), "id -u; touch /tmp/x && echo can-write-tmp".into()]),
+        user: Some("nobody".into()),
+        ..Default::default()
+    };
     let spec = e.prepare("test", "box2", &image, &opts).await.unwrap();
     pod.run(spec).await.unwrap();
     assert_eq!(wait_for_exit(&pod, "box2").await, Some(0));
@@ -96,11 +100,7 @@ async fn serves_http_through_a_forwarded_port() {
 /// Processes of ours whose command line is exactly `args`.
 fn processes(args: &[&str]) -> usize {
     let want: Vec<u8> = args.iter().flat_map(|a| a.bytes().chain(std::iter::once(0))).collect();
-    std::fs::read_dir("/proc")
-        .unwrap()
-        .flatten()
-        .filter(|e| std::fs::read(e.path().join("cmdline")).is_ok_and(|c| c == want))
-        .count()
+    std::fs::read_dir("/proc").unwrap().flatten().filter(|e| std::fs::read(e.path().join("cmdline")).is_ok_and(|c| c == want)).count()
 }
 
 #[tokio::test]
