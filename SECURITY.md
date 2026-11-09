@@ -74,7 +74,7 @@ Crane's container engine (`crates/crane-box`) runs images rootless:
 ### The supply chain
 
 - `Cargo.lock` and `package-lock.json` are committed; CI installs exactly what they list.
-- CI runs `cargo audit` and `npm audit` on every change and every week, and Dependabot proposes updates.
+- CI runs `cargo audit` and `npm audit` on every change and every week, and Dependabot proposes updates. A known vulnerability fails the build; crates that are only marked unmaintained (today some deep in Tauri's GTK stack and the keyring's D-Bus libraries) are listed in the log and replaced when their parents update.
 - Each release lists every dependency in an SBOM (CycloneDX) and is published with GitHub build provenance attestations, so you can check that a download was built from this repository by its CI: `gh attestation verify <file> --repo jhtjernsmo/crane`.
 
 ## For organisations: the policy file

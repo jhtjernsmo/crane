@@ -21,7 +21,10 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-audit
-      - run: cargo audit --deny warnings
+      # Fails on vulnerabilities. Warnings (unmaintained or unsound crates,
+      # today all deep in Tauri's GTK stack and the keyring's D-Bus crates)
+      # are shown in the log and followed up through Dependabot.
+      - run: cargo audit
 
   npm-audit:
     name: npm advisories (npm audit)
