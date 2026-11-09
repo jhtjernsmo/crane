@@ -101,7 +101,7 @@ describe('collections', () => {
   it('offers to open a folder when none is open', async () => {
     preview.resetCollection(null)
     render(<App />)
-    fireEvent.click(screen.getByRole('tab', { name: 'Requests' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Saved' }))
     fireEvent.click(screen.getByRole('button', { name: 'Open a folder' }))
     expect(await screen.findByRole('tree', { name: 'Requests' })).toBeTruthy()
   })

@@ -3,6 +3,7 @@ import { sendRequest } from './api'
 import { type Ask, AskDialog } from './components/AskDialog'
 import { CollectionTree } from './components/CollectionTree'
 import { ConfirmSend } from './components/ConfirmSend'
+import { ContainersView } from './components/ContainersView'
 import { EnvEditor } from './components/EnvEditor'
 import { EnvPicker } from './components/EnvPicker'
 import { HistoryList } from './components/HistoryList'
@@ -16,6 +17,7 @@ import { StartHint } from './components/StartHint'
 import { VarLine } from './components/VarLine'
 import { type Draft, buildSpec, emptyDraft, reopenDraft } from './request'
 import { THEMES, type Theme, applyTheme, loadTheme } from './theme'
+import { useBoxes } from './useBoxes'
 import { useCollection } from './useCollection'
 import { useEnvironments } from './useEnvironments'
 import { type Sent, useHistory } from './useHistory'
@@ -39,6 +41,7 @@ export default function App() {
   const side = pickedSide ?? (col.view ? 'requests' : 'history')
   const [naming, setNaming] = useState(false)
   const [ask, setAsk] = useState<Ask | null>(null)
+  const [view, setView] = useState<'requests' | 'containers'>('requests')
   const closeAsk = useCallback(() => setAsk(null), [])
   const closeEnvs = useCallback(() => setEditingEnvs(false), [])
   const cancelConfirm = useCallback(() => setConfirming(false), [])
@@ -66,7 +69,7 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const busy = editingEnvs || confirming || ask !== null || col.review !== null
+      const busy = editingEnvs || confirming || ask !== null || col.review !== null || view !== 'requests'
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !busy) {
         e.preventDefault()
         void send()
@@ -78,7 +81,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [send, editingEnvs, confirming, ask, col])
+  }, [send, editingEnvs, confirming, ask, col, view])
 
   /** Opens a file, asking first if that would throw away unsaved changes. */
   const openFile = (path: string) => {
@@ -102,6 +105,10 @@ export default function App() {
     <div className="app">
       <header>
         <div className="brand"><Logo />CRANE</div>
+        <div className="seg views" role="tablist" aria-label="View">
+          <button role="tab" aria-selected={view === 'requests'} onClick={() => setView('requests')}>Requests</button>
+          <button role="tab" aria-selected={view === 'containers'} onClick={() => setView('containers')}>Containers</button>
+        </div>
         <EnvPicker envs={envs} onEdit={() => setEditingEnvs(true)} />
         <div className="seg push" role="radiogroup" aria-label="Theme">
           {THEMES.map((t) => (
@@ -110,57 +117,69 @@ export default function App() {
         </div>
       </header>
 
-      <aside>
-        <div className="side-tabs" role="tablist" aria-label="Sidebar">
-          <button role="tab" aria-selected={side === 'requests'} onClick={() => setSide('requests')} className="lbl">Requests</button>
-          <button role="tab" aria-selected={side === 'history'} onClick={() => setSide('history')} className="lbl">History</button>
-        </div>
-        {side === 'requests' && <CollectionTree col={col} onOpen={openFile} onDelete={askDelete} />}
-        {side === 'requests' && col.problem && !col.review && <p className="problem small side-problem" role="alert">{col.problem}</p>}
-        {side === 'history' && (
-          <HistoryList
-            history={history}
-            onReopen={reopen}
-            onClear={() => setAsk({ title: 'Clear the history?', text: 'Every saved send is removed from this computer.', yes: 'Clear', danger: true, onYes: () => void history.clear() })}
-          />
-        )}
-      </aside>
+      {view === 'containers' ? (
+        <ContainersPage
+          onAsk={setAsk}
+          onUseAddress={(url) => {
+            setDraft((d) => ({ ...d, url }))
+            setView('requests')
+          }}
+        />
+      ) : (
+        <>
+        <aside>
+          <div className="side-tabs" role="tablist" aria-label="Sidebar">
+            <button role="tab" aria-selected={side === 'requests'} onClick={() => setSide('requests')} className="lbl">Saved</button>
+            <button role="tab" aria-selected={side === 'history'} onClick={() => setSide('history')} className="lbl">History</button>
+          </div>
+          {side === 'requests' && <CollectionTree col={col} onOpen={openFile} onDelete={askDelete} />}
+          {side === 'requests' && col.problem && !col.review && <p className="problem small side-problem" role="alert">{col.problem}</p>}
+          {side === 'history' && (
+            <HistoryList
+              history={history}
+              onReopen={reopen}
+              onClear={() => setAsk({ title: 'Clear the history?', text: 'Every saved send is removed from this computer.', yes: 'Clear', danger: true, onYes: () => void history.clear() })}
+            />
+          )}
+        </aside>
 
-      <main>
-        <section>
-          <div className="lbl"><span className="num">01</span>Request</div>
-          <FileBar col={col} naming={naming} onNaming={setNaming} />
-          <RequestBar
-            method={draft.method}
-            url={draft.url}
-            sending={sending}
-            onMethod={(method) => setDraft((d) => ({ ...d, method }))}
-            onUrl={(url) => setDraft((d) => ({ ...d, url }))}
-            onSend={() => void send()}
-          />
-          <VarLine names={varNames} envs={envs} onEdit={() => setEditingEnvs(true)} />
-          {envs.problem && <p className="problem small" role="alert">{envs.problem}</p>}
-          <RequestEditor draft={draft} onChange={setDraft} />
-          {history.items.length === 0 && <StartHint onPick={(method, url) => setDraft((d) => ({ ...d, method, url }))} />}
-        </section>
-        <section>
-          <div className="lbl"><span className="num">02</span>Response</div>
-          {sending && <p className="quiet">Waiting for an answer…</p>}
-          {!sending && current?.error && (
-            <div className="problem" role="alert">
-              <b>Not sent.</b> {current.error}
-            </div>
-          )}
-          {!sending && current?.res && <ResponsePane key={current.id} res={current.res} />}
-          {!sending && current && !current.res && !current.error && current.summary && (
-            <p className="help">
-              This was sent in an earlier session{current.summary.status ? ` and answered ${current.summary.status}` : ''}. Crane keeps only a summary, never the
-              answer itself. Send it again to see the answer.
-            </p>
-          )}
-          {!sending && !current && <p className="quiet">The answer shows up here.</p>}
-        </section>
-      </main>
+        <main>
+          <section>
+            <div className="lbl"><span className="num">01</span>Request</div>
+            <FileBar col={col} naming={naming} onNaming={setNaming} />
+            <RequestBar
+              method={draft.method}
+              url={draft.url}
+              sending={sending}
+              onMethod={(method) => setDraft((d) => ({ ...d, method }))}
+              onUrl={(url) => setDraft((d) => ({ ...d, url }))}
+              onSend={() => void send()}
+            />
+            <VarLine names={varNames} envs={envs} onEdit={() => setEditingEnvs(true)} />
+            {envs.problem && <p className="problem small" role="alert">{envs.problem}</p>}
+            <RequestEditor draft={draft} onChange={setDraft} />
+            {history.items.length === 0 && <StartHint onPick={(method, url) => setDraft((d) => ({ ...d, method, url }))} />}
+          </section>
+          <section>
+            <div className="lbl"><span className="num">02</span>Response</div>
+            {sending && <p className="quiet">Waiting for an answer…</p>}
+            {!sending && current?.error && (
+              <div className="problem" role="alert">
+                <b>Not sent.</b> {current.error}
+              </div>
+            )}
+            {!sending && current?.res && <ResponsePane key={current.id} res={current.res} />}
+            {!sending && current && !current.res && !current.error && current.summary && (
+              <p className="help">
+                This was sent in an earlier session{current.summary.status ? ` and answered ${current.summary.status}` : ''}. Crane keeps only a summary, never the
+                answer itself. Send it again to see the answer.
+              </p>
+            )}
+            {!sending && !current && <p className="quiet">The answer shows up here.</p>}
+          </section>
+        </main>
+        </>
+      )}
       {ask && <AskDialog ask={ask} onClose={closeAsk} />}
       {col.review && <SecretReview key={col.review.path + col.review.findings.length} col={col} envs={envs} />}
       {editingEnvs && <EnvEditor envs={envs} onClose={closeEnvs} />}
@@ -169,4 +188,10 @@ export default function App() {
       )}
     </div>
   )
+}
+
+/** Mounted only while the containers view is open, so status is only polled then. */
+function ContainersPage({ onAsk, onUseAddress }: { onAsk: (a: Ask) => void; onUseAddress: (url: string) => void }) {
+  const boxes = useBoxes()
+  return <ContainersView boxes={boxes} onAsk={onAsk} onUseAddress={onUseAddress} />
 }

@@ -7,4 +7,5 @@ beforeEach(() => {
   preview.reset()
   preview.resetCollection(null)
   preview.resetHistory()
+  preview.resetBoxes()
 })

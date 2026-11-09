@@ -224,3 +224,60 @@ export const historyClear = () => call<void>('history_clear', {}, async () => pr
 
 /** Opens the system file picker from Rust; only the chosen path comes back. */
 export const pickCertFile = () => call<string | null>('pick_cert_file', {}, async () => preview.pickCertFile())
+
+// ---- Containers (Crane's own engine) -------------------------------------
+
+export interface PortMap {
+  host: number
+  container: number
+}
+
+export interface ImageView {
+  name: string
+  size: number
+  exposedPorts: number[]
+}
+
+export interface ContainerView {
+  name: string
+  image: string
+  running: boolean
+  exitCode: number | null
+  ports: PortMap[]
+}
+
+export interface BoxStatus {
+  available: boolean
+  problem: string | null
+  images: ImageView[]
+  containers: ContainerView[]
+}
+
+export interface PullProgress {
+  step: string
+  done: number
+  total: number
+}
+
+export interface RunRequest {
+  name: string
+  image: string
+  ports: PortMap[]
+  env: [string, string][]
+  args: string[] | null
+}
+
+export const boxStatus = () => call<BoxStatus>('box_status', {}, async () => preview.boxStatus())
+export const boxPull = (name: string) => call<ImageView>('box_pull', { name }, async () => preview.boxPull(name))
+export const boxRemoveImage = (name: string) => call<void>('box_remove_image', { name }, async () => preview.boxRemoveImage(name))
+export const boxRun = (req: RunRequest) => call<void>('box_run', { req }, async () => preview.boxRun(req))
+export const boxStop = (name: string) => call<void>('box_stop', { name }, async () => preview.boxStop(name))
+export const boxRemove = (name: string) => call<void>('box_remove', { name }, async () => preview.boxRemove(name))
+export const boxLogs = (name: string) => call<string>('box_logs', { name }, async () => preview.boxLogs(name))
+
+/** Pull progress from Rust; returns a function that stops listening. */
+export async function onPullProgress(handler: (p: PullProgress) => void): Promise<() => void> {
+  if (!IN_TAURI) return preview.onPullProgress(handler)
+  const { listen } = await import('@tauri-apps/api/event')
+  return listen<PullProgress>('box-pull', (e) => handler(e.payload))
+}

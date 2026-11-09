@@ -15,7 +15,7 @@ Crane is built for teams that cannot send their API keys to someone else's cloud
 - Environments marked as production ask before sending anything that changes data.
 - A locked-down Tauri shell (strict CSP, minimal permissions), signed updates and dependency audits in CI.
 
-## What works now (steps 1 to 6)
+## What works now (steps 1 to 7)
 
 - Send a request with any method to any address. Leave out `http://` or `https://` and Crane picks: `http://` for `localhost`, `127.*`, `10.*` and `192.168.*`, `https://` for everything else.
 - See the status, time, size, the body (JSON is indented and coloured), the headers, and where the time went: name lookup, connect + TLS, waiting for the server and download. Every send opens a fresh connection, so the numbers are not flattered by a reused one.
@@ -32,6 +32,7 @@ Crane is built for teams that cannot send their API keys to someone else's cloud
 - Collections: open a folder (for example in a git repository) and keep requests there as `.http` files, the same format VS Code REST Client and JetBrains IDEs read. Folders show as a tree; Ctrl+S saves, and Crane asks before it throws away unsaved changes or deletes a file.
 - Before a file is written, Rust scans it for keys, tokens and passwords. If it finds one, nothing is written: you can move it to the keyring as a `{{variable}}` with one click, or save it anyway on purpose.
 - File commands only reach inside the folder you opened. Paths with `..`, absolute paths and symlinks that lead out are refused, and the folder picker is opened by Rust, so the UI has no file access of its own.
+- Containers with Crane's own engine, no Docker or Podman needed (Linux for now). Pull images straight from Docker Hub, GHCR or any OCI registry (checked against their sha256 digests), run them, open their ports on 127.0.0.1, read their logs, stop and remove them. Click a port to use it as a request address.
 - History that is kept between runs (500 sends). Only the request and a summary of the answer (status, time, size) are saved, never the answer itself, and Rust replaces anything that looks like a secret before writing. Clear it any time. Click one to bring the request and its answer back.
 - Light, dark or follow the system.
 
@@ -39,9 +40,19 @@ Requests are sent from Rust, not from the webview, so there is no CORS and local
 
 ## Next steps
 
-1. Containers with Crane's own runtime (no Docker or Podman needed): pull images from registries, run them rootless in their own namespaces, forward ports, show logs.
-2. A stack per collection in `crane.toml`: start it, wait for health checks, run the requests.
-3. Tests on responses and a CLI that runs a collection in CI.
+1. A stack per collection in `crane.toml`: start it, wait for health checks, run the requests.
+2. Tests on responses and a CLI that runs a collection in CI.
+
+## How the container engine works
+
+`crates/crane-box` is a small container runtime written for Crane:
+
+- **Rootless.** Crane re-runs itself as a helper inside a new user namespace. With an entry in `/etc/subuid` and `/etc/subgid` (most distributions add one per user), the helper maps 65,536 ids through `newuidmap`, so images that switch user, like postgres, work. "root" in a container is your own user outside it.
+- **Isolated.** Each container gets its own mount, PID, UTS and IPC namespaces, an overlay on the unpacked image, a fresh `/dev` and its own `/proc`. Paths inside the container are resolved with `openat2(RESOLVE_IN_ROOT)`, so an image's symlinks cannot point a mount at your files. Image layers are unpacked with checks against `..` and absolute paths.
+- **No internet by default.** A pod has its own network namespace with only a loopback device. Containers in the same pod reach each other on localhost; Crane forwards the ports you ask for from 127.0.0.1, and nothing else gets in or out.
+- **No leftovers.** Each container's pid 1 is a small init that passes on signals and reaps processes, and ends the container when the pod helper goes away, even if it is killed.
+
+Tested live against alpine, traefik/whoami and postgres: `cargo test -p crane-box --test live -- --ignored --test-threads=1`.
 
 ## Develop
 
@@ -66,5 +77,6 @@ npx --prefix ui tauri dev
 - `crates/crane-core`: the request engine. Sends, measures and explains errors. No Tauri in here, so it is tested on its own against a small local server.
 - `crates/crane-core/src/collection.rs`, `http_file.rs` and `secret_scan.rs`: folders of `.http` files, reading and writing them, and the secret check before saving.
 - `crates/crane-core/src/env.rs` and `vars.rs`: environments, `{{variables}}` and hiding secrets in responses.
+- `crates/crane-box`: the container engine (see above).
 - `src-tauri`: the app shell. Commands to send, list and save environments, and store a secret; `secrets.rs` talks to the system keyring.
 - `ui`: the React interface.

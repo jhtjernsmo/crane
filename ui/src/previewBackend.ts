@@ -1,7 +1,7 @@
 // Stand-in for the Rust side when the UI runs in a plain browser (npm run dev)
 // or in tests. Everything lives in memory and is gone on reload; the real app
 // keeps plain values in a file and secrets in the system keyring.
-import type { CollectionView, EnvFile, EnvList, Finding, HistoryEntry, ReadRequest, RequestSpec, Response, SaveResult, SavedRequest, TreeNode } from './api'
+import type { BoxStatus, CollectionView, EnvFile, EnvList, Finding, HistoryEntry, ImageView, PortMap, PullProgress, ReadRequest, RunRequest, RequestSpec, Response, SaveResult, SavedRequest, TreeNode } from './api'
 import { looksLikeSecret } from './secretScan'
 import { fillVars, findVars, listVars } from './vars'
 
@@ -207,3 +207,68 @@ export function historyClear() {
 }
 
 export const pickCertFile = () => '/home/you/certs/company-ca.pem'
+
+// ---- Containers -------------------------------------------------------------
+// A pretend engine for the browser preview and tests. The real one pulls
+// images and runs them in Linux namespaces (crates/crane-box).
+
+interface FakeBox {
+  name: string
+  image: string
+  running: boolean
+  exitCode: number | null
+  ports: PortMap[]
+}
+
+let images: ImageView[] = []
+let boxes: FakeBox[] = []
+let pullListeners: ((p: PullProgress) => void)[] = []
+
+export function resetBoxes(start: ImageView[] = []) {
+  images = structuredClone(start)
+  boxes = []
+}
+
+export const boxStatus = (): BoxStatus => ({ available: true, problem: null, images: structuredClone(images), containers: structuredClone(boxes) })
+
+export function onPullProgress(handler: (p: PullProgress) => void) {
+  pullListeners.push(handler)
+  return () => {
+    pullListeners = pullListeners.filter((h) => h !== handler)
+  }
+}
+
+export async function boxPull(name: string): Promise<ImageView> {
+  const clean = name.trim().replace(/^docker\.io\/(library\/)?/, '')
+  if (!/^[a-z0-9][a-z0-9._/-]*(:[\w.-]+)?$/.test(clean)) throw `"${name}" is not an image name. Try something like postgres:16 or ghcr.io/org/app:1.0.`
+  const full = clean.includes(':') ? clean : `${clean}:latest`
+  for (const done of [0, 40, 100]) pullListeners.forEach((h) => h({ step: done < 100 ? 'Downloading' : 'Unpacking', done, total: 100 }))
+  const port = full.startsWith('postgres') ? [5432] : full.startsWith('redis') ? [6379] : [80]
+  const image = { name: full, size: 41_000_000, exposedPorts: port }
+  images = [...images.filter((i) => i.name !== full), image].sort((a, b) => a.name.localeCompare(b.name))
+  return image
+}
+
+export function boxRemoveImage(name: string) {
+  if (boxes.some((b) => b.image === name)) throw `${name} is used by a container. Remove the container first.`
+  images = images.filter((i) => i.name !== name)
+}
+
+export function boxRun(req: RunRequest) {
+  if (boxes.some((b) => b.name === req.name)) throw `There is already a container called ${req.name}. Remove it first.`
+  if (!images.some((i) => i.name === req.image)) throw `${req.image} is not pulled yet.`
+  const taken = boxes.flatMap((b) => b.ports.map((p) => p.host))
+  const clash = req.ports.find((p) => taken.includes(p.host))
+  if (clash) throw `Port ${clash.host} on this computer is taken or not allowed. Pick another in the ports list.`
+  boxes = [...boxes, { name: req.name, image: req.image, running: true, exitCode: null, ports: req.ports }]
+}
+
+export function boxStop(name: string) {
+  boxes = boxes.map((b) => (b.name === name ? { ...b, running: false, exitCode: 0 } : b))
+}
+
+export function boxRemove(name: string) {
+  boxes = boxes.filter((b) => b.name !== name)
+}
+
+export const boxLogs = (name: string) => `${name} is a pretend container in the browser preview.\nready to accept connections\n`

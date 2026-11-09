@@ -10,10 +10,12 @@ interface Props {
   toggles?: boolean
   /** id of a <datalist> with name suggestions. */
   suggest?: string
+  /** Hints in the empty last row. */
+  placeholders?: [string, string]
 }
 
 /** Name/value lines with one blank line at the end that becomes a row when typed in. */
-export function KeyValueTable({ label, rows, onChange, toggles = true, suggest }: Props) {
+export function KeyValueTable({ label, rows, onChange, toggles = true, suggest, placeholders = ['name', 'value'] }: Props) {
   const [blank, setBlank] = useState(() => row())
   const [shown, setShown] = useState<ReadonlySet<number>>(new Set())
 
@@ -54,7 +56,7 @@ export function KeyValueTable({ label, rows, onChange, toggles = true, suggest }
                 <input
                   value={r.name}
                   onChange={(e) => update(r.id, { name: e.target.value })}
-                  placeholder={isBlank ? 'name' : ''}
+                  placeholder={isBlank ? placeholders[0] : ''}
                   aria-label={`${label} name ${i + 1}`}
                   list={suggest}
                   spellCheck={false}
@@ -65,7 +67,7 @@ export function KeyValueTable({ label, rows, onChange, toggles = true, suggest }
                   type={hidden ? 'password' : 'text'}
                   value={r.value}
                   onChange={(e) => update(r.id, { value: e.target.value })}
-                  placeholder={isBlank ? 'value' : ''}
+                  placeholder={isBlank ? placeholders[1] : ''}
                   aria-label={`${label} value ${i + 1}`}
                   autoComplete="off"
                   spellCheck={false}

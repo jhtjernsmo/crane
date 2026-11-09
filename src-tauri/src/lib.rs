@@ -5,6 +5,7 @@
 //! Secret values only ever travel from the UI to the keyring (`set_secret`),
 //! never back: the UI learns only which secrets have a value.
 
+mod boxes;
 mod secrets;
 
 use std::path::PathBuf;
@@ -273,6 +274,7 @@ pub fn run() {
             let collection = load_settings(&settings_path).collection.and_then(|p| Collection::open(&p).ok());
             // A damaged file is reported and left alone, never overwritten with nothing.
             let envs = EnvFile::load(&env_path).map_err(|e| e.to_string())?;
+            app.manage(boxes::Boxes::new(data_dir.join("containers")));
             app.manage(AppState {
                 envs: Mutex::new(envs),
                 env_path,
@@ -300,6 +302,13 @@ pub fn run() {
             history_add,
             history_clear,
             pick_cert_file,
+            boxes::box_status,
+            boxes::box_pull,
+            boxes::box_remove_image,
+            boxes::box_run,
+            boxes::box_stop,
+            boxes::box_remove,
+            boxes::box_logs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Crane");
