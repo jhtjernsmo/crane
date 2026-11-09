@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crane: an API client that keeps your secrets</title>
+  <meta name="description" content="Crane is an open-source API client with no account and no cloud. Secrets stay in your system keyring, requests are plain .http files, and the services your API needs run in Crane's own rootless containers.">
+  <meta property="og:title" content="Crane: an API client that keeps your secrets">
+  <meta property="og:description" content="Open source. No account, no cloud. Secrets in your keyring, requests in git, containers without Docker.">
+  <meta property="og:image" content="https://jhtjernsmo.github.io/crane/og.png">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="./"><img src="icon.svg" alt="" width="22" height="22">CRANE</a>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#security">Security</a>
+      <a href="https://github.com/jhtjernsmo/crane/tree/main/docs">Docs</a>
+      <a href="https://github.com/jhtjernsmo/crane">GitHub</a>
+      <a class="nav-cta" href="#get-it">Download</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-text">
+        <p class="kicker">Open source · MIT · Linux, macOS, Windows</p>
+        <h1>Test APIs without handing over your keys.</h1>
+        <p class="lead">Crane is an API client with no account and no cloud. Secrets stay in your system keyring, requests are plain files you keep in git, and the services your API needs run in Crane's own containers.</p>
+        <div class="actions">
+          <a class="btn btn-main" href="#get-it">Download Crane</a>
+          <a class="btn" href="https://github.com/jhtjernsmo/crane">View the source</a>
+        </div>
+      </div>
+      <figure class="shot hero-shot">
+        <img src="images/requests.png" width="1920" height="1200" alt="Crane with a saved request, its checks and the answer: three of four checks passed.">
+      </figure>
+    </section>
+
+    <section class="why">
+      <div class="label"><span class="num">00</span>Why it exists</div>
+      <div class="why-body">
+        <p>An API client holds the keys to production. In 2023 Postman <a href="https://blog.postman.com/announcing-new-lightweight-postman-api-client/">retired its offline Scratch Pad</a> and moved everything into its cloud, and some companies stopped allowing it. In late 2024 researchers <a href="https://www.cloudsek.com/blog/postman-data-leaks-the-hidden-risks-lurking-in-your-workspaces">found more than 30,000 public Postman workspaces</a> leaking API keys and tokens.</p>
+        <p>Crane is built the other way round: nothing leaves your machine except the requests you send.</p>
+      </div>
+    </section>
+
+    <section id="features" class="feature">
+      <div class="label"><span class="num">01</span>Secrets</div>
+      <div class="feature-grid">
+        <div>
+          <h2>Your keys stay in the keyring.</h2>
+          <p>Mark a variable as secret and its value goes to the system keyring: Secret Service on Linux, Keychain on macOS, Credential Manager on Windows. The app can store it but never read it back. Rust fills it in right before sending, and if a server echoes it, the answer shows <code>‹token hidden›</code>.</p>
+          <ul class="ticks">
+            <li>Environments like Local, Test and Prod, used as <code>{{base}}</code> and <code>{{token}}</code></li>
+            <li>Production asks before anything changes data</li>
+            <li>CA files, client certificates and proxies for internal APIs</li>
+          </ul>
+        </div>
+        <figure class="shot"><img src="images/environments-crop.png" width="1320" height="630" loading="lazy" alt="The environment editor with a plain variable and a secret one stored in the keyring."></figure>
+      </div>
+    </section>
+
+    <section class="feature flip">
+      <div class="label"><span class="num">02</span>Collections</div>
+      <div class="feature-grid">
+        <div>
+          <h2>Requests are files you can commit.</h2>
+          <p>Open a folder and every request is a <code>.http</code> file, the same format VS Code REST Client and JetBrains IDEs read. Before anything is written, Crane scans it for keys and tokens, and one click moves what it finds into the keyring.</p>
+<pre class="code"><span class="c"># @name Create order</span>
+<span class="c"># @expect status 201</span>
+<span class="k">POST</span> {{base}}/orders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"item": "crane-001", "qty": 2}</pre>
+        </div>
+        <figure class="shot"><img src="images/secret-crop.png" width="1000" height="440" loading="lazy" alt="Crane refusing to save a token into a file, offering to move it to the keyring instead."></figure>
+      </div>
+    </section>
+
+    <section class="feature">
+      <div class="label"><span class="num">03</span>Checks and CI</div>
+      <div class="feature-grid">
+        <div>
+          <h2>Check the answers, here and in CI.</h2>
+          <p>Write checks as lines in the file: <code>status 2xx</code>, <code>time &lt; 500ms</code>, <code>json $.id = {{user_id}}</code>. Keep a value for the next request with <code>@save</code>. Run all sends a folder and shows what failed, and <code>crane-cli</code> does the same in CI, with JUnit output and secrets from environment variables.</p>
+<pre class="code"><span class="p">$</span> crane-cli run api-tests --env CI --stack
+<span class="ok">PASS</span>  POST   200  01-login.http        84 ms
+<span class="ok">PASS</span>  GET    200  orders/list.http     31 ms
+<span class="bad">FAIL</span>  GET    404  orders/get.http       9 ms
+        x status 200: got 404
+2 passed, 1 failed, 0.4 s</pre>
+        </div>
+        <figure class="shot"><img src="images/run-all.png" width="1920" height="1200" loading="lazy" alt="Run all showing one request passed and one failed, with the failing check."></figure>
+      </div>
+    </section>
+
+    <section class="feature flip">
+      <div class="label"><span class="num">04</span>Containers</div>
+      <div class="feature-grid">
+        <div>
+          <h2>Start what your API needs. No Docker.</h2>
+          <p>Crane has its own container engine. It pulls images straight from Docker Hub or GHCR, and runs them rootless, each in its own namespaces, with no internet and ports only on 127.0.0.1. A <code>crane.toml</code> next to your requests starts the database and the API in order and waits until each is ready.</p>
+<pre class="code"><span class="k">[[service]]</span>
+name = "db"
+image = "postgres:16-alpine"
+env = { POSTGRES_PASSWORD = "{{db_password}}" }
+ports = ["5432:5432"]
+ready = { port = 5432 }</pre>
+        </div>
+        <figure class="shot dark"><img src="images/stack-crop.png" width="1920" height="760" loading="lazy" alt="The Containers view in dark mode with a running stack and the database's log."></figure>
+      </div>
+    </section>
+
+    <section id="security" class="security">
+      <div class="label"><span class="num">05</span>Security</div>
+      <div class="sec-grid">
+        <div>
+          <h2>What it protects, and where it stops.</h2>
+          <p>Every rule that matters is enforced in Rust, not only in the interface: secrets are write-only from the UI, file access stays inside the folder you open, and production confirmations cannot be skipped. Organisations can add a policy file that limits which hosts can be reached and turns off saving secrets, skipping certificate checks, containers or history.</p>
+          <p>Crane is young. The container engine has no seccomp filter or resource limits yet, and there has been no independent review. <a href="https://github.com/jhtjernsmo/crane/blob/main/SECURITY.md">SECURITY.md</a> lists every threat, what Crane does about it, and its limits.</p>
+        </div>
+<pre class="code policy"><span class="c"># /etc/crane/policy.toml</span>
+contact = "it-security@example.com"
+allowed_hosts = ["*.example.com", "localhost"]
+allow_saving_secrets = false
+allow_insecure_tls = false
+containers = false</pre>
+      </div>
+    </section>
+
+    <section id="get-it" class="get">
+      <div class="label"><span class="num">06</span>Get it</div>
+      <div class="get-grid">
+        <div>
+          <h2>Download, or build it yourself.</h2>
+          <p>Installers for Linux, macOS and Windows, and <code>crane-cli</code>, are on the <a href="https://github.com/jhtjernsmo/crane/releases">releases page</a>. Each comes with an SBOM and a build attestation, so you can check it was built from the source by its CI:</p>
+<pre class="code"><span class="p">$</span> gh attestation verify crane.AppImage --repo jhtjernsmo/crane</pre>
+        </div>
+        <div>
+          <p>To build from source you need Rust, Node.js and the <a href="https://tauri.app/start/prerequisites/">Tauri system packages</a>:</p>
+<pre class="code"><span class="p">$</span> git clone https://github.com/jhtjernsmo/crane
+<span class="p">$</span> cd crane && npm --prefix ui install
+<span class="p">$</span> npx --prefix ui tauri build</pre>
+          <div class="actions">
+            <a class="btn btn-main" href="https://github.com/jhtjernsmo/crane/releases">Releases</a>
+            <a class="btn" href="https://github.com/jhtjernsmo/crane/blob/main/CONTRIBUTING.md">Contribute</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span class="brand small-brand"><img src="icon.svg" alt="" width="16" height="16">CRANE</span>
+    <span>MIT license · No tracking on this page either.</span>
+    <a href="https://github.com/jhtjernsmo/crane">github.com/jhtjernsmo/crane</a>
+  </footer>
+</body>
+</html>

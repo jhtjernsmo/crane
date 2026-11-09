@@ -1,157 +1,94 @@
-# Crane
+<p align="center"><img src="ui/public/icon.svg" width="72" alt=""></p>
 
-A desktop app for testing APIs, both public ones and the ones on your own machine or network. Later it will also start and stop the containers those APIs need, so the thing you test and the requests you send live in one place.
+<h1 align="center">Crane</h1>
 
-Open source under the MIT license. Built with Tauri 2 (Rust) and React.
+<p align="center">An open-source API client that keeps your secrets on your machine,<br>and runs the containers your API needs, without Docker.</p>
 
-## Security first
+<p align="center">
+  <a href="https://github.com/jhtjernsmo/crane/actions/workflows/ci.yml"><img src="https://github.com/jhtjernsmo/crane/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/jhtjernsmo/crane/actions/workflows/security.yml"><img src="https://github.com/jhtjernsmo/crane/actions/workflows/security.yml/badge.svg" alt="Security"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+</p>
 
-See [SECURITY.md](SECURITY.md) for the threat model, its limits, and how to report a vulnerability. Organisations can lock Crane down with a policy file (allowed hosts, no saving secrets, no skipping certificate checks, no containers, no history); every rule is enforced in Rust.
+<p align="center"><a href="https://jhtjernsmo.github.io/crane/">Website</a> · <a href="docs/requests.md">Docs</a> · <a href="SECURITY.md">Security</a> · <a href="CONTRIBUTING.md">Contributing</a></p>
 
-Crane is built for teams that cannot send their API keys to someone else's cloud.
+![Crane sending a request and checking the answer](docs/images/requests.png)
 
-- No account, no cloud, no telemetry. The app only talks to the addresses you send requests to.
-- Secrets never go in collection files. Keys and passwords live in the system keyring; files only say `{{token}}`, so collections are safe to keep in git.
-- Crane warns before saving anything that looks like a key or token.
-- Secrets are masked on screen and never written to history.
-- Environments marked as production ask before sending anything that changes data.
-- A locked-down Tauri shell (strict CSP, minimal permissions), signed updates and dependency audits in CI.
+## Why
 
-## What works now
+API clients hold some of the most sensitive things a developer has: keys, tokens and passwords for production systems. In 2023 Postman [removed its offline Scratch Pad](https://blog.postman.com/announcing-new-lightweight-postman-api-client/) and moved everything into its cloud, and some teams banned it. In 2024 researchers [found more than 30,000 public Postman workspaces](https://www.cloudsek.com/blog/postman-data-leaks-the-hidden-risks-lurking-in-your-workspaces) leaking API keys and tokens.
 
-- Send a request with any method to any address. Leave out `http://` or `https://` and Crane picks: `http://` for `localhost`, `127.*`, `10.*` and `192.168.*`, `https://` for everything else.
-- See the status, time, size, the body (JSON is indented and coloured), the headers, and where the time went: name lookup, connect + TLS, waiting for the server and download. Every send opens a fresh connection, so the numbers are not flattered by a reused one.
-- Errors in plain words: "Nothing answered at localhost:8080. Is the server running, and on that port?" instead of a stack of library errors.
-- Query, Headers and Body tabs. The query table and the address stay in step; edit either one.
-- Headers can be switched off without deleting them, and common names are suggested.
-- Body as JSON, plain text or a form. Crane adds the matching `Content-Type` unless you set your own. JSON is checked as you type ("Line 3, column 12: A comma is not allowed before the closing bracket.") and can be tidied with one click.
-- Values of `Authorization`, `Cookie` and names with token, key, secret or password are hidden on screen until you click show, and are never kept in history. Reopening an old request takes those values from what is on screen now.
-- Environments (Local, Test, Prod, ...) with variables you use as `{{base}}` or `{{token}}` in the address, headers and body. A line under the address shows what each one turns into before you send.
-- Secret variables live in the system keyring (GNOME Keyring or KWallet on Linux, Keychain on macOS, Credential Manager on Windows). The UI can store a value but never read it back: Rust fills secrets in right before sending, and hides them again (`‹token hidden›`) if the server echoes them in the body, headers or address. Plain values are saved in `environments.json` in the app's data folder, readable only by you.
-- Crane warns when a plain variable looks like a key (Stripe, GitHub, Slack, AWS, JWT and other long random strings) and suggests a variable when a token is typed straight into a header.
-- Internal APIs: each environment can trust an extra CA (your company's, or a self-signed server certificate), send a client certificate for mutual TLS, and use the system proxy, no proxy or its own (HTTP, HTTPS or SOCKS5, with a `{{secret}}` for the password). Skipping certificate checks is possible for local development only; production environments refuse it.
-- An environment marked as production asks before POST, PUT, PATCH and DELETE. The check runs in Rust too, so the UI cannot skip it.
-- Collections: open a folder (for example in a git repository) and keep requests there as `.http` files, the same format VS Code REST Client and JetBrains IDEs read. Folders show as a tree; Ctrl+S saves, and Crane asks before it throws away unsaved changes or deletes a file.
-- Before a file is written, Rust scans it for keys, tokens and passwords. If it finds one, nothing is written: you can move it to the keyring as a `{{variable}}` with one click, or save it anyway on purpose.
-- File commands only reach inside the folder you opened. Paths with `..`, absolute paths and symlinks that lead out are refused, and the folder picker is opened by Rust, so the UI has no file access of its own.
-- Containers with Crane's own engine, no Docker or Podman needed (Linux for now). Pull images straight from Docker Hub, GHCR or any OCI registry (checked against their sha256 digests), run them, open their ports on 127.0.0.1, read their logs, stop and remove them. Click a port to use it as a request address.
-- Stacks: a `crane.toml` next to your requests lists the services they need. Start stack pulls what is missing, starts the services in the order of `depends_on`, waits for each one's ready check (a port, an HTTP path or a line in the log), opens their ports and shows their logs. If one fails, everything is stopped again and you see its last log lines.
-- Checks on answers: each request can have lines like `status 2xx`, `time < 500ms` or `json $.id = {{user_id}}`, kept as `# @expect` comments in its file. `# @save token = json $.access_token` keeps a value for the requests after it. Run all sends every request in the folder and shows what failed; `crane-cli` does the same in a terminal or CI.
-- History that is kept between runs (500 sends). Only the request and a summary of the answer (status, time, size) are saved, never the answer itself, and Rust replaces anything that looks like a secret before writing. Clear it any time. Click one to bring the request and its answer back.
-- Light, dark or follow the system.
+Crane is built the other way round:
 
-Requests are sent from Rust, not from the webview, so there is no CORS and local addresses work like they do from curl.
+- **No account, no cloud, no telemetry.** The only traffic is the requests you send.
+- **Secrets live in the system keyring**, never in files or history. The app can store them but not read them back; Rust fills them in right before sending.
+- **Nothing that looks like a key is written to a file** without asking, so collections are safe to keep in git.
+- **Production asks first** before anything changes data, and organisations can lock Crane down with a [policy file](SECURITY.md#for-organisations-the-policy-file).
 
-## Next steps
+## What it does
 
-1. A seccomp filter and CPU and memory limits for containers.
-2. Signed automatic updates.
-3. Containers on macOS and Windows (through a small Linux VM).
-
-## Checks
-
-```http
-# @name Log in
-# @expect status 200
-# @expect json $.access_token exists
-# @save token = json $.access_token
-POST {{base}}/login
-Content-Type: application/json
-
-{"user": "ada", "password": "{{password}}"}
-```
-
-| Check | Means |
+| | |
 | --- | --- |
-| `status 200`, `status 2xx` | The status code, or its class |
-| `time < 500ms`, `time < 2s` | Total time |
-| `header content-type contains json` | Also `exists`, `=`, `!=` |
-| `body contains "ok"` | The body as text |
-| `json $.items length 3` | Also `exists`, `=`, `!=`, `contains`, `<`, `>`; paths like `$.a.b[0].c` |
+| **Requests** | Any method and address, headers, query, JSON, text and form bodies, timing split into lookup, connect + TLS, waiting and download. |
+| **Collections** | Plain `.http` files in a folder you choose, readable by VS Code REST Client and JetBrains IDEs too. |
+| **Environments** | `{{variables}}` per environment, secrets in the keyring, CA files, client certificates and proxies for internal APIs. |
+| **Checks** | `status 2xx`, `time < 500ms`, `json $.id = {{user_id}}` in the file; Run all sends a folder and shows what failed. |
+| **crane-cli** | The same run in CI, with JUnit output and secrets from environment variables. |
+| **Containers** | Crane's own rootless container engine: pull images, run them in their own namespaces, read their logs. No Docker or Podman. |
+| **Stacks** | A `crane.toml` lists the services your API needs; Start stack runs them in order and waits until each is ready. |
 
-Checks can use variables (`json $.owner.id = {{user_id}}`). Values from `@save` count as secrets: they are hidden in answers, errors and reports. A request without checks passes when its status is below 400.
+![Secrets found before saving](docs/images/secret-check.png)
 
-## crane-cli
+## Install
 
-Runs a folder (or one `.http` file) in path order, so name files `01-login.http`, `02-...` to set the order.
+Downloads for Linux, macOS and Windows are on the [releases page](https://github.com/jhtjernsmo/crane/releases), each with an SBOM and a build attestation you can check with `gh attestation verify <file> --repo jhtjernsmo/crane`.
 
-```sh
-crane-cli run api-tests --env Test --junit report.xml
-```
-
-- `--env NAME` uses an environment from the app. `--envs FILE` reads environments from a file instead; they never hold secret values, so a CI environment can live in the repository.
-- Secrets come from the keyring, or in CI from `CRANE_VAR_<name>` environment variables (or `--var name=value`). Both are hidden in the output.
-- `--stack` starts the services in `crane.toml` first and stops them afterwards (Linux).
-- `--junit FILE` writes a report CI systems can show. `--bail` stops at the first failure. Requests that change data in a production environment need `--yes-production`.
-- Exit code 0 when everything passed, 1 when something failed, 2 when the run could not start.
-
-A GitHub Actions job:
-
-```yaml
-- run: crane-cli run api-tests --envs ci-env.json --env CI --stack --junit report.xml
-  env:
-    CRANE_VAR_password: ${{ secrets.API_PASSWORD }}
-```
-
-## crane.toml
-
-```toml
-[[service]]
-name = "db"
-image = "postgres:16-alpine"
-env = { POSTGRES_PASSWORD = "{{db_password}}" }   # from the active environment; secrets from the keyring
-ports = ["5432:5432"]                              # this computer : container, on 127.0.0.1
-volumes = ["./data/db:/var/lib/postgresql/data"]   # must stay inside this folder
-ready = { port = 5432 }
-
-[[service]]
-name = "api"
-image = "ghcr.io/your-org/api:latest"
-env = { DATABASE_URL = "postgres://postgres:{{db_password}}@db:5432/postgres" }
-ports = ["8080:8080"]
-depends_on = ["db"]
-ready = { http = "/health", port = 8080, timeout = 90 }
-```
-
-All services share one network, so `api` reaches the database as `db:5432`. Volumes can only point inside the collection's folder: a `crane.toml` from a repository you cloned cannot hand your other files to a container. Secrets are filled in when the stack starts and live only in the containers' environment, never in the file.
-
-## How the container engine works
-
-`crates/crane-box` is a small container runtime written for Crane:
-
-- **Rootless.** Crane re-runs itself as a helper inside a new user namespace. With an entry in `/etc/subuid` and `/etc/subgid` (most distributions add one per user), the helper maps 65,536 ids through `newuidmap`, so images that switch user, like postgres, work. "root" in a container is your own user outside it.
-- **Isolated.** Each container gets its own mount, PID, UTS and IPC namespaces, an overlay on the unpacked image, a fresh `/dev` and its own `/proc`. Paths inside the container are resolved with `openat2(RESOLVE_IN_ROOT)`, so an image's symlinks cannot point a mount at your files. Image layers are unpacked with checks against `..` and absolute paths.
-- **No internet by default.** A pod has its own network namespace with only a loopback device. Containers in the same pod reach each other on localhost; Crane forwards the ports you ask for from 127.0.0.1, and nothing else gets in or out.
-- **No leftovers.** Each container's pid 1 is a small init that passes on signals and reaps processes, and ends the container when the pod helper goes away, even if it is killed.
-
-Tested live against alpine, traefik/whoami and postgres: `cargo test -p crane-box --test live -- --ignored --test-threads=1`.
-
-## Develop
-
-You need Rust, Node.js and the [Tauri system packages](https://tauri.app/start/prerequisites/) for your OS.
+To build it yourself you need Rust, Node.js and the [Tauri system packages](https://tauri.app/start/prerequisites/):
 
 ```sh
+git clone https://github.com/jhtjernsmo/crane && cd crane
 npm --prefix ui install
-npx --prefix ui tauri dev
+npx --prefix ui tauri build
 ```
 
-| Task | Command |
-| --- | --- |
-| Run with hot reload | `npx --prefix ui tauri dev` |
-| UI only, in a browser | `npm --prefix ui run dev` (requests use the browser's fetch, so CORS applies) |
-| Build installers | `npx --prefix ui tauri build` |
-| Rust tests | `cargo test --workspace` |
-| Keyring test (uses your real keyring) | `cargo test -p crane -- --ignored` |
-| UI tests | `npm --prefix ui test` |
-| The CLI | `cargo run -p crane-cli -- run <folder>` |
+Containers run on Linux; see [docs/containers.md](docs/containers.md) for what they need.
 
-## Layout
+## A quick tour
 
-- `crates/crane-core`: the request engine. Sends, measures and explains errors. No Tauri in here, so it is tested on its own against a small local server.
-- `crates/crane-core/src/collection.rs`, `http_file.rs` and `secret_scan.rs`: folders of `.http` files, reading and writing them, and the secret check before saving.
-- `crates/crane-core/src/env.rs` and `vars.rs`: environments, `{{variables}}` and hiding secrets in responses.
-- `crates/crane-box`: the container engine (see above).
-- `crates/crane-cli`: `crane-cli run`, for terminals and CI.
-- `crates/crane-core/src/checks.rs` and `runner.rs`: the check language and running a folder.
-- `src-tauri`: the app shell. Commands to send, list and save environments, and store a secret; `secrets.rs` talks to the system keyring.
-- `ui`: the React interface.
+1. **Send something.** Type `api.github.com/zen` and press Ctrl+Enter. Leave out `https://`; Crane picks `http://` for local addresses and `https://` for the rest.
+2. **Add an environment** with `base = http://localhost:8080` and a secret `token`, then send `{{base}}/me` with `Authorization: Bearer {{token}}`.
+3. **Open a folder** under Saved and press Ctrl+S. Your request is now a `.http` file you can commit.
+4. **Add checks** on the Checks tab, like `status 200` and `json $.name exists`, and press Run all.
+5. **Start what your API needs** with a `crane.toml`:
+
+   ```toml
+   [[service]]
+   name = "db"
+   image = "postgres:16-alpine"
+   env = { POSTGRES_PASSWORD = "{{db_password}}" }
+   ports = ["5432:5432"]
+   ready = { port = 5432 }
+   ```
+
+6. **Run it in CI:** `crane-cli run api-tests --env CI --stack --junit report.xml`.
+
+## Documentation
+
+- [Requests, environments and secrets](docs/requests.md)
+- [Checks and runs](docs/checks.md)
+- [crane-cli](docs/cli.md)
+- [Stacks: crane.toml](docs/stacks.md)
+- [The container engine](docs/containers.md)
+- [Security and the policy file](SECURITY.md)
+
+## Status
+
+Crane is young (0.1). It has close to 200 tests, including live tests that pull and run real images, but no independent security review yet, and the macOS and Windows builds are less tried than Linux. Please read [SECURITY.md](SECURITY.md) before using it against systems that hold other people's data, and [report what breaks](https://github.com/jhtjernsmo/crane/issues).
+
+## Contributing
+
+Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[MIT](LICENSE) © 2026 Jonas Hollund Tjernsmo
