@@ -80,6 +80,7 @@ async fn runs_a_collection_in_order_with_saved_values_and_checks() {
         production: false,
         vars: vec![Var { name: "base".into(), value: base, secret: false }],
         network: Default::default(),
+        headers: vec![],
     };
     let store = MemorySecrets::default();
     let mut seen = Vec::new();

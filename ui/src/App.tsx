@@ -9,6 +9,7 @@ import { EnvPicker } from './components/EnvPicker'
 import { HistoryList } from './components/HistoryList'
 import { FileBar } from './components/FileBar'
 import { Logo } from './components/Logo'
+import { IS_MAC, WindowControls } from './components/WindowControls'
 import { RequestBar } from './components/RequestBar'
 import { RequestEditor } from './components/RequestEditor'
 import { RunReport } from './components/RunReport'
@@ -42,7 +43,8 @@ export default function App() {
   // Until a tab is picked: the requests when a folder is open, else the history.
   const [pickedSide, setSide] = useState<'requests' | 'history' | null>(null)
   const side = pickedSide ?? (col.view ? 'requests' : 'history')
-  const [naming, setNaming] = useState(false)
+  /** The folder the request on screen is being named for; null when not naming. */
+  const [naming, setNaming] = useState<string | null>(null)
   const [ask, setAsk] = useState<Ask | null>(null)
   const [view, setView] = useState<'requests' | 'containers'>('requests')
   const [report, setReport] = useState<Report | null>(null)
@@ -83,7 +85,7 @@ export default function App() {
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && !busy && col.view) {
         e.preventDefault()
-        void col.save().then((done) => !done && setNaming(true))
+        void col.save().then((done) => !done && setNaming(''))
       }
     }
     window.addEventListener('keydown', onKey)
@@ -126,8 +128,8 @@ export default function App() {
 
   return (
     <div className="app">
-      <header>
-        <div className="brand"><Logo />CRANE</div>
+      <header data-tauri-drag-region className={IS_MAC ? 'mac' : undefined}>
+        <div className="brand" data-tauri-drag-region><Logo />CRANE</div>
         <div className="seg views" role="tablist" aria-label="View">
           <button role="tab" aria-selected={view === 'requests'} onClick={() => setView('requests')}>Requests</button>
           <button role="tab" aria-selected={view === 'containers'} onClick={() => setView('containers')}>Containers</button>
@@ -146,6 +148,7 @@ export default function App() {
             <button key={t} role="radio" aria-checked={theme === t} onClick={() => setTheme(t)}>{t}</button>
           ))}
         </div>
+        <WindowControls />
       </header>
 
       {view === 'containers' ? (
@@ -165,7 +168,7 @@ export default function App() {
             <button role="tab" aria-selected={side === 'requests'} onClick={() => setSide('requests')} className="lbl">Saved</button>
             <button role="tab" aria-selected={side === 'history'} onClick={() => setSide('history')} className="lbl">History</button>
           </div>
-          {side === 'requests' && <CollectionTree col={col} onOpen={openFile} onDelete={askDelete} onRunAll={() => void runAll()} running={running} />}
+          {side === 'requests' && <CollectionTree col={col} onOpen={openFile} onDelete={askDelete} onRunAll={() => void runAll()} running={running} onSaveIn={setNaming} />}
           {side === 'requests' && col.problem && !col.review && <p className="problem small side-problem" role="alert">{col.problem}</p>}
           {side === 'history' && (
             <HistoryList
@@ -180,7 +183,7 @@ export default function App() {
         <main>
           <section>
             <div className="lbl"><span className="num">01</span>Request</div>
-            <FileBar col={col} naming={naming} onNaming={setNaming} />
+            <FileBar key={naming ?? 'file'} col={col} naming={naming} onNaming={setNaming} />
             <RequestBar
               method={draft.method}
               url={draft.url}

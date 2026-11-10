@@ -105,4 +105,37 @@ describe('collections', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open a folder' }))
     expect(await screen.findByRole('tree', { name: 'Requests' })).toBeTruthy()
   })
+
+  it('saves the request on screen into a folder from the right-click menu', async () => {
+    render(<App />)
+    const tree = await screen.findByRole('tree', { name: 'Requests' })
+    fireEvent.click(screen.getByRole('button', { name: 'New' }))
+    type('Address', '{{base}}/users')
+    fireEvent.contextMenu(within(tree).getByText('users'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Save current request in users' }))
+    expect((screen.getByLabelText('Folder') as HTMLSelectElement).value).toBe('users')
+    fireEvent.change(screen.getByLabelText('Request name'), { target: { value: 'List users' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.getByText('users/list-users')).toBeTruthy())
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('makes a folder inside a folder from the right-click menu', async () => {
+    render(<App />)
+    const tree = await screen.findByRole('tree', { name: 'Requests' })
+    fireEvent.contextMenu(within(tree).getByText('users'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'New folder in users' }))
+    fireEvent.change(screen.getByLabelText('New folder name'), { target: { value: 'admin' } })
+    fireEvent.submit(screen.getByLabelText('New folder name'))
+    await waitFor(() => expect(within(screen.getByRole('tree')).getByText('admin')).toBeTruthy())
+  })
+
+  it('closes the right-click menu with Escape', async () => {
+    render(<App />)
+    const tree = await screen.findByRole('tree', { name: 'Requests' })
+    fireEvent.contextMenu(within(tree).getByText('Health'))
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeTruthy()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
 })

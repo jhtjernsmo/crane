@@ -34,6 +34,7 @@ An environment is a set of variables, like Local, Test and Prod. Use them as `{{
 - Plain values are saved in `environments.json` in the app's data folder, readable only by you.
 - **Secret** values go to the system keyring (Secret Service on Linux, Keychain on macOS, Credential Manager on Windows). The app can store them but never read them back: Rust fills them in right before sending, and hides them again (`‹token hidden›`) if a server echoes them in its answer.
 - An environment marked as **production** asks before POST, PUT, PATCH and DELETE. Rust checks this too, so the UI cannot skip it.
+- **Default headers**, like `Accept: application/json`, are sent with every request in the environment unless the request sets the same header itself. `Content-Type` is only added to requests with a body. They work in Run all and `crane-cli` too, and can use `{{variables}}`.
 
 ## Network settings for internal APIs
 

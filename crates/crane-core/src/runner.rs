@@ -105,8 +105,14 @@ impl SecretStore for RunStore<'_> {
 
 /// The environment plus this run's values, which override and are secret.
 fn with_run_vars(env: &Option<Environment>, run: &HashMap<String, String>) -> Environment {
-    let mut e =
-        env.clone().unwrap_or(Environment { id: NO_ENV.into(), name: "no environment".into(), production: false, vars: vec![], network: Default::default() });
+    let mut e = env.clone().unwrap_or(Environment {
+        id: NO_ENV.into(),
+        name: "no environment".into(),
+        production: false,
+        vars: vec![],
+        network: Default::default(),
+        headers: vec![],
+    });
     for name in run.keys() {
         e.vars.retain(|v| &v.name != name);
         e.vars.push(Var { name: name.clone(), value: String::new(), secret: true });

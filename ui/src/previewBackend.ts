@@ -1,7 +1,7 @@
 // Stand-in for the Rust side when the UI runs in a plain browser (npm run dev)
 // or in tests. Everything lives in memory and is gone on reload; the real app
 // keeps plain values in a file and secrets in the system keyring.
-import type { BoxStatus, CheckResult, Policy, CollectionView, Report, StackEvent, StackInfo, EnvFile, EnvList, Finding, HistoryEntry, ImageView, PortMap, PullProgress, ReadRequest, RunRequest, RequestSpec, Response, SaveResult, SavedRequest, TreeNode } from './api'
+import type { BoxStatus, CheckResult, Policy, CollectionView, Report, StackEvent, StackInfo, EnvFile, EnvList, Environment, Finding, HistoryEntry, ImageView, PortMap, PullProgress, ReadRequest, RunRequest, RequestSpec, Response, SaveResult, SavedRequest, TreeNode } from './api'
 import { check } from './checks'
 import { looksLikeSecret } from './secretScan'
 import { fillVars, findVars, listVars } from './vars'
@@ -49,8 +49,17 @@ export function setSecret(envId: string, name: string, value: string): EnvList {
   return list()
 }
 
-export function resolve(spec: RequestSpec, envId: string | null, confirmed: boolean): { spec: RequestSpec; secrets: [string, string][] } {
+/** Mirrors `with_default_headers` in crane-core's env.rs. */
+function withDefaultHeaders(spec: RequestSpec, env: Environment | undefined): RequestSpec {
+  const hasBody = spec.body !== null && spec.body !== ''
+  const own = (name: string) => spec.headers.some((h) => h.name.trim().toLowerCase() === name.trim().toLowerCase())
+  const defaults = (env?.headers ?? []).filter((d) => d.name.trim() !== '' && !own(d.name) && (hasBody || d.name.trim().toLowerCase() !== 'content-type'))
+  return { ...spec, headers: [...defaults, ...spec.headers] }
+}
+
+export function resolve(asked: RequestSpec, envId: string | null, confirmed: boolean): { spec: RequestSpec; secrets: [string, string][] } {
   const env = file.environments.find((e) => e.id === envId)
+  const spec = withDefaultHeaders(asked, env)
   if (env?.production && !confirmed && WRITE_METHODS.includes(spec.method.toUpperCase())) {
     throw `${env.name} is a production environment. Confirm before sending ${spec.method}.`
   }

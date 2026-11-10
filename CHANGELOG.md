@@ -2,6 +2,18 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - 2026-11-10
+
+### Added
+- Default headers per environment, such as `Accept` and `Content-Type: application/json`. A request's own header wins.
+- Right-click in the Saved tree: save the request on screen into a folder, make a folder inside another, open or delete a file.
+- Crane draws its own title bar, so the logo is shown once. macOS keeps its traffic lights.
+- `crane-demo-api` and `examples/demo`, a small API and a collection to try Crane against.
+
+### Fixed
+- The app showed history, "save with the secret" and skipping certificate checks as turned off by a policy when there was none: the policy reached the UI with the wrong field names.
+- Right-click no longer shows the web view's own menu, except in text fields, which keep cut, copy and paste.
+
 ## [0.1.1] - 2026-11-09
 
 The first published version. (0.1.0 was tagged but never published: its macOS build failed.)

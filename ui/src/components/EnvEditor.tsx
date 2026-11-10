@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { type EnvFile, type Network, NO_NETWORK } from '../api'
-import { isSecretName } from '../request'
+import { type Row, isSecretName, row } from '../request'
 import { looksLikeSecret } from '../secretScan'
+import { KeyValueTable } from './KeyValueTable'
 import { NetworkFields } from './NetworkFields'
 import type { Environments } from '../useEnvironments'
 import { isVarName } from '../vars'
@@ -21,6 +22,7 @@ interface EditEnv {
   production: boolean
   vars: EditVar[]
   network: Network
+  headers: Row[]
 }
 
 let nextKey = 1
@@ -95,7 +97,12 @@ function VarRow({ v, stored, typed, onChange, onTyped, onRemove, isBlank }: {
 
 export function EnvEditor({ envs, onClose, insecureOff = null }: { envs: Environments; onClose: () => void; insecureOff?: string | null }) {
   const [list, setList] = useState<EditEnv[]>(() =>
-    envs.list.environments.map((e) => ({ ...e, network: e.network ?? NO_NETWORK, vars: e.vars.map((v) => editVar(v.name, v.value, v.secret, v.name)) })),
+    envs.list.environments.map((e) => ({
+      ...e,
+      network: e.network ?? NO_NETWORK,
+      vars: e.vars.map((v) => editVar(v.name, v.value, v.secret, v.name)),
+      headers: (e.headers ?? []).map((h) => row(h.name, h.value)),
+    })),
   )
   const [selected, setSelected] = useState<string | null>(envs.list.active ?? envs.list.environments[0]?.id ?? null)
   const [typed, setTyped] = useState<Record<number, string>>({})
@@ -131,7 +138,7 @@ export function EnvEditor({ envs, onClose, insecureOff = null }: { envs: Environ
     const id = newId()
     const taken = new Set(list.map((e) => e.name.toLowerCase()))
     const name = ['Local', 'Test', 'Staging', 'Prod'].find((n) => !taken.has(n.toLowerCase())) ?? `Environment ${list.length + 1}`
-    setList((l) => [...l, { id, name, production: name === 'Prod', vars: [], network: NO_NETWORK }])
+    setList((l) => [...l, { id, name, production: name === 'Prod', vars: [], network: NO_NETWORK, headers: [] }])
     setSelected(id)
     setConfirmDelete(false)
   }
@@ -154,6 +161,7 @@ export function EnvEditor({ envs, onClose, insecureOff = null }: { envs: Environ
         production: e.production,
         network: e.network,
         vars: kept(e).map((v) => ({ name: v.name.trim(), value: v.secret ? '' : v.value, secret: v.secret })),
+        headers: e.headers.filter((h) => h.name.trim() !== '').map((h) => ({ name: h.name.trim(), value: h.value })),
       })),
     }
     const secrets = list.flatMap((e) =>
@@ -230,6 +238,20 @@ export function EnvEditor({ envs, onClose, insecureOff = null }: { envs: Environ
                 Use them as <span className="mono">{'{{name}}'}</span> in the address, headers or body. Secret values go straight to the system keyring: they are never
                 written to a file, never shown again, and hidden if a server sends them back.
               </p>
+              <div className="env-headers">
+                <span className="lbl">Default headers</span>
+                <KeyValueTable
+                  label="Default headers"
+                  rows={env.headers}
+                  onChange={(headers) => updateEnv({ headers })}
+                  toggles={false}
+                  placeholders={['Accept', 'application/json']}
+                />
+                <p className="quiet small">
+                  Sent with every request in this environment, unless the request sets the same header. Content-Type is only sent with a body. Use{' '}
+                  <span className="mono">{'{{name}}'}</span> for secrets.
+                </p>
+              </div>
               <NetworkFields
                 network={env.network}
                 production={env.production}

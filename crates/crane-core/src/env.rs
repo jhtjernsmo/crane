@@ -35,6 +35,10 @@ pub struct Environment {
     pub vars: Vec<Var>,
     #[serde(default)]
     pub network: Network,
+    /// Sent with every request unless the request sets the same header.
+    /// `Content-Type` is only added to requests that have a body.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub headers: Vec<Header>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -210,8 +214,21 @@ fn used_vars(spec: &RequestSpec, network: &Network) -> Vec<String> {
     names
 }
 
-/// Fills in `{{variables}}` from `env`, reading secrets from `store`.
+/// The request with the environment's default headers added, before its own.
+fn with_default_headers(spec: &RequestSpec, env: Option<&Environment>) -> RequestSpec {
+    let Some(env) = env else { return spec.clone() };
+    let has_body = spec.body.as_deref().is_some_and(|b| !b.is_empty());
+    let defaults = env.headers.iter().filter(|d| {
+        let name = d.name.trim();
+        !name.is_empty() && !spec.headers.iter().any(|h| h.name.trim().eq_ignore_ascii_case(name)) && (has_body || !name.eq_ignore_ascii_case("content-type"))
+    });
+    RequestSpec { headers: defaults.cloned().chain(spec.headers.iter().cloned()).collect(), ..spec.clone() }
+}
+
+/// Fills in `{{variables}}` from `env`, reading secrets from `store`, after
+/// adding the environment's default headers.
 pub fn resolve(spec: &RequestSpec, env: Option<&Environment>, store: &dyn SecretStore) -> Result<Resolved, SendError> {
+    let spec = &with_default_headers(spec, env);
     let network = env.map(|e| e.network.clone()).unwrap_or_default();
     let names = used_vars(spec, &network);
     if names.is_empty() {
@@ -264,10 +281,31 @@ mod tests {
         Var { name: name.into(), value: String::new(), secret: true }
     }
     fn env(id: &str, name: &str, vars: Vec<Var>) -> Environment {
-        Environment { id: id.into(), name: name.into(), production: false, vars, network: Network::default() }
+        Environment { id: id.into(), name: name.into(), production: false, vars, network: Network::default(), headers: vec![] }
     }
     fn spec(url: &str) -> RequestSpec {
         RequestSpec { method: "GET".into(), url: url.into(), headers: vec![], body: None }
+    }
+
+    fn header(name: &str, value: &str) -> Header {
+        Header { name: name.into(), value: value.into() }
+    }
+
+    #[test]
+    fn adds_default_headers_the_request_does_not_set() {
+        let store = MemorySecrets::default();
+        let mut e = env("local", "Local", vec![var("v", "2")]);
+        e.headers = vec![header("Accept", "application/json"), header("Content-Type", "application/json"), header("X-Api-Version", "{{v}}")];
+        let mut s = spec("http://localhost/x");
+        s.headers = vec![header("accept", "text/plain")];
+
+        let get = resolve(&s, Some(&e), &store).unwrap();
+        let names: Vec<_> = get.spec.headers.iter().map(|h| (h.name.as_str(), h.value.as_str())).collect();
+        assert_eq!(names, [("X-Api-Version", "2"), ("accept", "text/plain")], "own header wins; no Content-Type without a body");
+
+        s.body = Some("{}".into());
+        let post = resolve(&s, Some(&e), &store).unwrap();
+        assert!(post.spec.headers.iter().any(|h| h.name == "Content-Type" && h.value == "application/json"));
     }
 
     #[test]

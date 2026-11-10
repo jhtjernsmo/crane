@@ -74,6 +74,8 @@ export interface Environment {
   production: boolean
   vars: Var[]
   network?: Network
+  /** Sent with every request that does not set the same header itself. */
+  headers?: Header[]
 }
 
 export interface EnvFile {

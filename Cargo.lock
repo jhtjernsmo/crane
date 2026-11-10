@@ -799,7 +799,7 @@ dependencies = [
 
 [[package]]
 name = "crane"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "crane-box",
  "crane-core",
@@ -813,7 +813,7 @@ dependencies = [
 
 [[package]]
 name = "crane-box"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "flate2",
  "nix",
@@ -830,7 +830,7 @@ dependencies = [
 
 [[package]]
 name = "crane-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "crane-box",
  "crane-core",
@@ -841,7 +841,7 @@ dependencies = [
 
 [[package]]
 name = "crane-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "keyring",
  "rcgen",
@@ -860,7 +860,7 @@ dependencies = [
 
 [[package]]
 name = "crane-demo-api"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "axum",
  "reqwest",

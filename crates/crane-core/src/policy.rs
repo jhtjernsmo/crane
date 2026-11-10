@@ -24,8 +24,10 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+/// Read from TOML with snake_case keys; sent to the UI in camelCase like
+/// everything else.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields, default)]
+#[serde(deny_unknown_fields, default, rename_all(serialize = "camelCase"))]
 pub struct Policy {
     pub contact: Option<String>,
     /// `None` allows every host. Patterns: `api.example.com`, `*.example.com`.
@@ -145,6 +147,15 @@ mod tests {
         let path = dir.path().join("policy.toml");
         std::fs::write(&path, toml).unwrap();
         Policy::load(&path)
+    }
+
+    #[test]
+    fn reaches_the_ui_in_camel_case() {
+        let json = serde_json::to_value(Policy::default()).unwrap();
+        for key in ["allowedHosts", "blockedHosts", "allowSavingSecrets", "allowInsecureTls", "containers", "keepHistory", "source", "problem"] {
+            assert!(json.get(key).is_some(), "{key} missing from {json}");
+        }
+        assert_eq!(json["keepHistory"], true);
     }
 
     #[test]

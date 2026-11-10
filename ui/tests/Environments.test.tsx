@@ -185,4 +185,26 @@ describe('network settings', () => {
       noProxy: '',
     })
   })
+
+  it("adds the environment's default headers unless the request sets its own", async () => {
+    preview.reset({
+      active: 'local',
+      environments: [{ ...local, headers: [{ name: 'Accept', value: 'application/json' }, { name: 'Content-Type', value: 'application/json' }] }],
+    })
+    const fetchMock = echoServer()
+    render(<App />)
+    type('Address', '{{base}}/me')
+    const line = await screen.findByRole('list', { name: 'Variables in this request' })
+    await waitFor(() => expect(line.textContent).toContain('{{base}} → localhost:8080'))
+    fireEvent.click(screen.getByRole('button', { name: /send/i }))
+    await screen.findByText('200')
+    expect(fetchMock).toHaveBeenLastCalledWith('https://localhost:8080/me', expect.objectContaining({ headers: [['Accept', 'application/json']] }))
+
+    fireEvent.click(screen.getAllByRole('tab', { name: /headers/i })[0])
+    type('Headers name 1', 'accept')
+    type('Headers value 1', 'text/plain')
+    fireEvent.click(screen.getByRole('button', { name: /send/i }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(fetchMock).toHaveBeenLastCalledWith('https://localhost:8080/me', expect.objectContaining({ headers: [['accept', 'text/plain']] }))
+  })
 })

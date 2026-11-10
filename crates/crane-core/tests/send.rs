@@ -146,6 +146,7 @@ async fn fills_in_variables_and_hides_secrets_the_server_echoes() {
         name: "Local".into(),
         production: false,
         network: Default::default(),
+        headers: vec![],
         vars: vec![Var { name: "base".into(), value: addr, secret: false }, Var { name: "token".into(), value: String::new(), secret: true }],
     };
     let mut s = spec("GET", "{{base}}/me?key={{token}}");
