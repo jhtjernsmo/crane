@@ -47,7 +47,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build the app and attach it to a draft release
         id: tauri
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Signs the updater files; the app only installs updates signed with this key.
