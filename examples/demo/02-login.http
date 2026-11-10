@@ -1,0 +1,8 @@
+# @name Log in
+# @expect status 200
+# @expect json $.token exists
+# @save token = json $.token
+POST {{base}}/login
+Content-Type: application/json
+
+{"username": "ada", "password": "{{password}}"}

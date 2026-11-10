@@ -1,0 +1,42 @@
+# The demo API behind Caddy, which gets the TLS certificate. Only Caddy is
+# reachable from outside; the API has no ports of its own.
+name: crane-demo
+
+x-hardening: &hardening
+  restart: unless-stopped
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  logging:
+    driver: json-file
+    options: { max-size: "5m", max-file: "2" }
+
+services:
+  api:
+    <<: *hardening
+    build:
+      context: ../..
+      dockerfile: deploy/demo-api/Dockerfile
+    read_only: true
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+    environment:
+      REQUESTS_PER_MINUTE: "120"
+
+  caddy:
+    <<: *hardening
+    image: caddy:2-alpine
+    cap_add: [NET_BIND_SERVICE]
+    mem_limit: 256m
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      DEMO_HOST: ${DEMO_HOST:-crane-api.tjernsmo.no}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [api]
+
+volumes:
+  caddy_data:
+  caddy_config:

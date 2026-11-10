@@ -1,0 +1,4 @@
+# @name Delete the order
+# @expect status 204
+DELETE {{base}}/orders/{{order_id}}
+Authorization: Bearer {{token}}

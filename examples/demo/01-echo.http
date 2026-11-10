@@ -1,0 +1,6 @@
+# @name Echo a request
+# @expect status 200
+# @expect json $.args.from = crane
+# @expect header content-type contains json
+GET {{base}}/get?from=crane
+Accept: application/json

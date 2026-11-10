@@ -41,6 +41,15 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
+      # The examples double as an end-to-end test of crane-cli.
+      - name: Run examples/demo against a local demo API
+        run: |
+          cargo build --locked -p crane-demo-api -p crane-cli
+          BIND=127.0.0.1:8080 target/debug/crane-demo-api &
+          for _ in $(seq 20); do curl -sf http://127.0.0.1:8080/health && break; sleep 0.5; done
+          target/debug/crane-cli run examples/demo --envs examples/demo/environments.json --env Local
+        env:
+          CRANE_VAR_password: crane
 
   ui:
     name: UI (types, tests, build)

@@ -1,0 +1,4 @@
+# @name A slow answer
+# @expect status 200
+# @expect time < 2s
+GET {{base}}/delay/300

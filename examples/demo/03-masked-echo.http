@@ -1,0 +1,5 @@
+# @name See a secret masked
+# @expect status 200
+# @expect json $.headers.authorization exists
+GET {{base}}/anything
+Authorization: Bearer {{token}}

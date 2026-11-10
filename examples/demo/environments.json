@@ -1,0 +1,20 @@
+{
+  "environments": [
+    {
+      "id": "demo",
+      "name": "Demo",
+      "vars": [
+        { "name": "base", "value": "https://crane-api.tjernsmo.no" },
+        { "name": "password", "secret": true }
+      ]
+    },
+    {
+      "id": "local",
+      "name": "Local",
+      "vars": [
+        { "name": "base", "value": "http://127.0.0.1:8080" },
+        { "name": "password", "secret": true }
+      ]
+    }
+  ]
+}

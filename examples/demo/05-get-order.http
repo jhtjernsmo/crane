@@ -1,0 +1,5 @@
+# @name Read the order back
+# @expect status 200
+# @expect json $.item = crane-001
+GET {{base}}/orders/{{order_id}}
+Authorization: Bearer {{token}}

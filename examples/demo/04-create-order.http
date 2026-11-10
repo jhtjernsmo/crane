@@ -1,0 +1,9 @@
+# @name Create an order
+# @expect status 201
+# @expect json $.qty = 2
+# @save order_id = json $.id
+POST {{base}}/orders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"item": "crane-001", "qty": 2}

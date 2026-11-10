@@ -1,0 +1,22 @@
+name: Demo API
+
+# Runs examples/demo against the public demo API, to see that it is up and
+# answers as the examples expect.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: examples/demo against the public demo API
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --locked -p crane-cli
+      - run: target/debug/crane-cli run examples/demo --envs examples/demo/environments.json --env Demo --junit report.xml
+        env:
+          CRANE_VAR_password: crane
