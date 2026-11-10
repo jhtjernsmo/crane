@@ -20,7 +20,7 @@ jobs:
     name: Rust (fmt, clippy, tests)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: System packages for Tauri
         run: |
           sudo apt-get update
@@ -58,7 +58,7 @@ jobs:
       run:
         working-directory: ui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -73,7 +73,7 @@ jobs:
     name: Container engine (live)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Ubuntu 24.04 limits unprivileged user namespaces through AppArmor,
       # and runners have no subordinate ids; rootless containers need both.
       - name: Allow rootless containers
