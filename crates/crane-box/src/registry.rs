@@ -83,6 +83,11 @@ fn pick_platform(list: &[Descriptor]) -> Option<&Descriptor> {
     list.iter().find(|d| d.platform.as_ref().is_some_and(|p| p.os == "linux" && p.architecture == host_arch()))
 }
 
+/// Lowercase hex, written by hand so it works whatever type a digest is.
+fn to_hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
 pub fn is_valid_digest(d: &str) -> bool {
     d.strip_prefix("sha256:").is_some_and(|h| h.len() == 64 && h.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()))
 }
@@ -180,7 +185,7 @@ impl Registry {
     async fn fetch_manifest(&mut self, reference: &str) -> Result<(String, Fetched)> {
         let res = self.get(&self.url(&format!("manifests/{reference}")), Some(ACCEPT)).await?;
         let bytes = res.bytes().await.map_err(|e| self.net(e))?;
-        let digest = format!("sha256:{:x}", Sha256::digest(&bytes));
+        let digest = format!("sha256:{}", to_hex(&Sha256::digest(&bytes)));
         if reference.starts_with("sha256:") && digest != reference {
             return Err(BoxError::Checksum(self.image.to_string()));
         }
@@ -214,7 +219,7 @@ impl Registry {
         }
         file.flush().await?;
         drop(file);
-        if format!("{:x}", hasher.finalize()) != hex {
+        if to_hex(&hasher.finalize()) != hex {
             let _ = tokio::fs::remove_file(&tmp).await;
             return Err(BoxError::Checksum(self.image.to_string()));
         }
