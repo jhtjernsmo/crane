@@ -13,6 +13,7 @@ const strict = {
   allowInsecureTls: false,
   containers: false,
   keepHistory: false,
+  checkUpdates: false,
   source: '/etc/crane/policy.toml',
   problem: null,
 }

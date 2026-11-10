@@ -329,8 +329,12 @@ async fn get_policy(state: State<'_, AppState>) -> Result<crane_core::policy::Po
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .setup(|app| {
+    let policy = Arc::new(crane_core::policy::Policy::load_system());
+    let builder = tauri::Builder::default().plugin(tauri_plugin_process::init());
+    // Without the plugin the UI has no way to check, so the rule holds in Rust.
+    let builder = if policy.check_updates { builder.plugin(tauri_plugin_updater::Builder::new().build()) } else { builder };
+    builder
+        .setup(move |app| {
             let data_dir = app.path().app_data_dir()?;
             let env_path = data_dir.join(ENV_FILE);
             let settings_path = data_dir.join(SETTINGS_FILE);
@@ -339,7 +343,7 @@ pub fn run() {
             let collection = load_settings(&settings_path).collection.and_then(|p| Collection::open(&p).ok());
             // A damaged file is reported and left alone, never overwritten with nothing.
             let envs = EnvFile::load(&env_path).map_err(|e| e.to_string())?;
-            let policy = Arc::new(crane_core::policy::Policy::load_system());
+            let policy = Arc::clone(&policy);
             app.manage(boxes::Boxes::new(data_dir.join("containers"), Arc::clone(&policy)));
             app.manage(AppState {
                 envs: Mutex::new(envs),

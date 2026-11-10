@@ -322,3 +322,7 @@ li.fail .mark { color: var(--bad); }
 .ctx-menu button { display: block; width: 100%; text-align: left; padding: 6px 14px; font-size: 13px; color: var(--ink); }
 .ctx-menu button:hover, .ctx-menu button:focus-visible { background: var(--panel); outline: none; }
 .ctx-menu button.danger { color: var(--bad); }
+
+/* ---------- update button in the title bar ---------- */
+.update { font: 500 11.5px 'IBM Plex Mono', monospace; color: var(--on-accent); background: var(--accent); padding: 3px 10px; }
+.update:disabled { opacity: 0.8; cursor: progress; }

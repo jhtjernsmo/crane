@@ -18,7 +18,7 @@ Only the latest release gets security fixes.
 | History | `history.jsonl` in the app's data folder (0600): requests and a summary of each answer, never the answer's body |
 | Your files and machine | Reached only through the folder you open, and by containers only through volumes inside that folder |
 
-Crane has no account, no cloud and no telemetry. The only network traffic is the requests you send and the image pulls you start.
+Crane has no account, no cloud and no telemetry. The only network traffic is the requests you send, the image pulls you start, and one update check against GitHub's releases a few seconds after start. That check sends nothing from Crane; GitHub sees your IP address, as with any download. A policy can turn it off.
 
 ## Threats and what Crane does about them
 
@@ -75,6 +75,7 @@ Crane's container engine (`crates/crane-box`) runs images rootless:
 
 - `Cargo.lock` and `package-lock.json` are committed; CI installs exactly what they list.
 - CI runs `cargo audit` and `npm audit` on every change and every week, and Dependabot proposes updates. A known vulnerability fails the build; crates that are only marked unmaintained (today some deep in Tauri's GTK stack and the keyring's D-Bus libraries) are listed in the log and replaced when their parents update.
+- Updates are installed by Tauri's updater only when signed with Crane's update key, which is not the same as GitHub's release access: someone who could upload to the release still could not make Crane install their file. Linux updates work for the AppImage; .deb and .rpm installs update through their package files.
 - Each release lists every dependency in an SBOM (CycloneDX) and is published with GitHub build provenance attestations, so you can check that a download was built from this repository by its CI: `gh attestation verify <file> --repo jhtjernsmo/crane`.
 
 ## For organisations: the policy file
@@ -93,13 +94,13 @@ allow_saving_secrets = false                    # no "save with the secret"
 allow_insecure_tls = false                      # no skipping certificate checks
 containers = false                              # no container engine, no stacks
 keep_history = false                            # nothing written to history
+check_updates = false                           # no update checks; IT ships new versions
 ```
 
-Every rule is enforced in Rust in the app and in `crane-cli`. A policy file that cannot be read, has a mistake or has an unknown rule puts Crane in its strictest mode (only localhost, no containers, no history), and the app says so in its header.
+Every rule is enforced in Rust in the app and in `crane-cli`. A policy file that cannot be read, has a mistake or has an unknown rule puts Crane in its strictest mode (only localhost, no containers, no history, no update checks), and the app says so in its header.
 
 ## What is not done yet
 
 - A seccomp filter and resource limits for containers.
-- Signed automatic updates (releases are attested, but the app does not update itself yet).
 - Reproducible builds.
 - An independent security review. Until there is one, weigh the above yourself, and ask your security team before using Crane against systems that hold other people's data.

@@ -2,6 +2,11 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Crane updates itself: a few seconds after start it asks GitHub for a newer release and shows "Update to x" in the title bar. Updates are only installed when signed with Crane's update key. `check_updates = false` in the policy file turns the check off.
+
 ## [0.1.2] - 2026-11-10
 
 ### Added

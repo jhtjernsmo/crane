@@ -368,6 +368,7 @@ export interface Policy {
   allowInsecureTls: boolean
   containers: boolean
   keepHistory: boolean
+  checkUpdates: boolean
   /** The file the rules come from; null when there is none. */
   source: string | null
   /** Set when the file is broken and the strictest rules apply. */
@@ -382,6 +383,7 @@ export const OPEN_POLICY: Policy = {
   allowInsecureTls: true,
   containers: true,
   keepHistory: true,
+  checkUpdates: true,
   source: null,
   problem: null,
 }

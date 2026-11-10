@@ -388,4 +388,4 @@ export function resetPolicy(start: Policy | null = null) {
 }
 
 export const getPolicy = (): Policy =>
-  policy ?? { contact: null, allowedHosts: null, blockedHosts: [], allowSavingSecrets: true, allowInsecureTls: true, containers: true, keepHistory: true, source: null, problem: null }
+  policy ?? { contact: null, allowedHosts: null, blockedHosts: [], allowSavingSecrets: true, allowInsecureTls: true, containers: true, keepHistory: true, checkUpdates: true, source: null, problem: null }

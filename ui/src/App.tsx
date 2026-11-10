@@ -24,6 +24,7 @@ import { useCollection } from './useCollection'
 import { useEnvironments } from './useEnvironments'
 import { type Sent, useHistory } from './useHistory'
 import { refusal, usePolicy } from './usePolicy'
+import { useUpdate } from './useUpdate'
 import { findVars } from './vars'
 
 /** Methods that change data, so a production environment asks first. */
@@ -37,6 +38,7 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>(loadTheme)
   const envs = useEnvironments()
   const policy = usePolicy()
+  const update = useUpdate(policy.checkUpdates)
   const [editingEnvs, setEditingEnvs] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const col = useCollection(draft, setDraft, envs)
@@ -143,7 +145,18 @@ export default function App() {
             {policy.problem ? 'policy error: locked down' : 'managed by your organisation'}
           </span>
         )}
-        <div className="seg push" role="radiogroup" aria-label="Theme">
+        {update.version && (
+          <button
+            type="button"
+            className="update push"
+            onClick={() => void update.install()}
+            disabled={update.progress !== null}
+            title={update.problem ?? `Crane ${update.version} is out. It is checked against Crane's signing key before it installs, then Crane restarts.`}
+          >
+            {update.problem ? 'Update failed, try again' : update.progress === null ? `Update to ${update.version}` : `Updating ${update.progress}%`}
+          </button>
+        )}
+        <div className={`seg${update.version ? '' : ' push'}`} role="radiogroup" aria-label="Theme">
           {THEMES.map((t) => (
             <button key={t} role="radio" aria-checked={theme === t} onClick={() => setTheme(t)}>{t}</button>
           ))}

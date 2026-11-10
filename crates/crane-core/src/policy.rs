@@ -15,6 +15,7 @@
 //! allow_insecure_tls = false     # no skipping certificate checks
 //! containers = false             # no container engine, no stacks
 //! keep_history = false           # nothing written to history.jsonl
+//! check_updates = false          # no update checks; IT ships new versions
 //! ```
 //!
 //! Every rule is enforced in Rust, so the UI cannot get around it. A policy
@@ -37,6 +38,8 @@ pub struct Policy {
     pub allow_insecure_tls: bool,
     pub containers: bool,
     pub keep_history: bool,
+    /// Ask GitHub for a newer, signed release on start.
+    pub check_updates: bool,
     /// Set when the rules come from a file, for showing in the app.
     #[serde(skip_deserializing)]
     pub source: Option<String>,
@@ -56,6 +59,7 @@ impl Default for Policy {
             allow_insecure_tls: true,
             containers: true,
             keep_history: true,
+            check_updates: true,
             source: None,
             problem: None,
         }
@@ -85,6 +89,7 @@ impl Policy {
             allow_insecure_tls: false,
             containers: false,
             keep_history: false,
+            check_updates: false,
             source: Some(source.display().to_string()),
             problem: Some(problem),
         }
@@ -152,7 +157,8 @@ mod tests {
     #[test]
     fn reaches_the_ui_in_camel_case() {
         let json = serde_json::to_value(Policy::default()).unwrap();
-        for key in ["allowedHosts", "blockedHosts", "allowSavingSecrets", "allowInsecureTls", "containers", "keepHistory", "source", "problem"] {
+        for key in ["allowedHosts", "blockedHosts", "allowSavingSecrets", "allowInsecureTls", "containers", "keepHistory", "checkUpdates", "source", "problem"]
+        {
             assert!(json.get(key).is_some(), "{key} missing from {json}");
         }
         assert_eq!(json["keepHistory"], true);
@@ -191,7 +197,7 @@ containers = false
     fn a_broken_file_locks_everything_down() {
         let p = policy("allowed_hosts = [\"x\"\ncontainers = maybe");
         assert!(p.problem.as_deref().unwrap().contains("mistake"));
-        assert!(!p.containers && !p.allow_saving_secrets && !p.allow_insecure_tls && !p.keep_history);
+        assert!(!p.containers && !p.allow_saving_secrets && !p.allow_insecure_tls && !p.keep_history && !p.check_updates);
         assert!(p.host_allowed("localhost") && !p.host_allowed("example.com"));
 
         let unknown = policy("allow_everything = true");
