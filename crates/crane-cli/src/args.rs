@@ -2,14 +2,24 @@
 
 use std::path::PathBuf;
 
-pub const USAGE: &str = "Usage: crane-cli run <folder or .http file> [--env NAME] [--var NAME=VALUE]... [--junit FILE] [--bail] [--stack]";
+pub const USAGE: &str = "Usage: crane-cli run <folder or .http file> [--env NAME] [--var NAME=VALUE]... [--junit FILE] [--bail] [--stack]
+       crane-cli import <export file or Bruno folder> [--into FOLDER] [--envs FILE]";
 
 pub const HELP: &str = "crane-cli: runs Crane collections and checks the answers.
 
 Usage:
   crane-cli run <folder or .http file> [options]
+  crane-cli import <export file or Bruno folder> [--into FOLDER] [--envs FILE]
 
-Options:
+Import:
+  Reads a Postman collection or environment (v2 JSON), an Insomnia v4
+  export (JSON) or a Bruno collection folder, and writes the requests as
+  .http files into a new folder inside FOLDER (default: here). Its
+  environments are added to the app's environments file (or FILE), with
+  secret values in the system keyring. Close the app first, or it may
+  save over the new environments.
+
+Run options:
   --env NAME           Use this environment's variables (by name or id).
   --envs FILE          Read environments from FILE instead of the app's.
                        Environment files never hold secret values, so a
@@ -47,9 +57,17 @@ pub struct Args {
     pub yes_production: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportArgs {
+    pub source: PathBuf,
+    pub into: PathBuf,
+    pub envs: Option<PathBuf>,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Command {
     Run(Args),
+    Import(ImportArgs),
     Help,
     Version,
 }
@@ -59,6 +77,7 @@ pub fn parse(mut it: impl Iterator<Item = String>) -> Result<Command, String> {
         None | Some("-h" | "--help" | "help") => return Ok(Command::Help),
         Some("-V" | "--version") => return Ok(Command::Version),
         Some("run") => {}
+        Some("import") => return parse_import(it),
         Some(other) => return Err(format!("unknown command \"{other}\"")),
     }
     let mut path = None;
@@ -101,6 +120,24 @@ pub fn parse(mut it: impl Iterator<Item = String>) -> Result<Command, String> {
     Ok(Command::Run(a))
 }
 
+fn parse_import(mut it: impl Iterator<Item = String>) -> Result<Command, String> {
+    let mut a = ImportArgs { source: PathBuf::new(), into: PathBuf::from("."), envs: None };
+    let mut source = None;
+    while let Some(arg) = it.next() {
+        let mut value = |flag: &str| it.next().ok_or_else(|| format!("{flag} needs a value"));
+        match arg.as_str() {
+            "--into" => a.into = value("--into")?.into(),
+            "--envs" => a.envs = Some(value("--envs")?.into()),
+            "-h" | "--help" => return Ok(Command::Help),
+            flag if flag.starts_with('-') => return Err(format!("unknown option {flag}")),
+            p if source.is_none() => source = Some(PathBuf::from(p)),
+            extra => return Err(format!("only one export, got also \"{extra}\"")),
+        }
+    }
+    a.source = source.ok_or("import needs an export file or a Bruno folder")?;
+    Ok(Command::Import(a))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -130,5 +167,15 @@ mod tests {
         assert!(p("run x --wat").unwrap_err().contains("unknown option"));
         assert!(p("run x y").unwrap_err().contains("only one"));
         assert!(p("walk x").unwrap_err().contains("unknown command"));
+    }
+
+    #[test]
+    fn reads_an_import() {
+        let Command::Import(a) = p("import shop.postman_collection.json --into api --envs envs.json").unwrap() else { panic!() };
+        assert_eq!(a, ImportArgs { source: "shop.postman_collection.json".into(), into: "api".into(), envs: Some("envs.json".into()) });
+        let Command::Import(here) = p("import bruno-pets").unwrap() else { panic!() };
+        assert_eq!(here.into, PathBuf::from("."));
+        assert!(p("import").unwrap_err().contains("needs an export"));
+        assert!(p("import a b").unwrap_err().contains("only one"));
     }
 }

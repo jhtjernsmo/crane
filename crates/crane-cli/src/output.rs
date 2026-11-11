@@ -5,6 +5,29 @@ use std::io::IsTerminal;
 
 use crane_core::runner::{Outcome, Report};
 
+/// Lines saying what `crane-cli import` did and what still needs doing.
+pub fn import_summary(from: &str, collection: &str, env_file: &str, r: &crane_core::import::ImportReport) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Some(folder) = &r.folder {
+        out.push(format!("Imported {} request(s) from {from} into {collection}/{folder}", r.requests));
+    }
+    if !r.environments.is_empty() {
+        out.push(format!("Added environment(s) {} to {env_file}", r.environments.join(", ")));
+    }
+    if !r.secrets_moved.is_empty() {
+        let names: Vec<String> = r.secrets_moved.iter().map(|n| format!("{{{{{n}}}}}")).collect();
+        out.push(format!("Moved secrets typed into requests to the keyring as {}", names.join(", ")));
+    }
+    if !r.secrets_to_set.is_empty() {
+        out.push(format!("Set these secrets in the app, they came without a value: {}", r.secrets_to_set.join(", ")));
+    }
+    if !r.notes.is_empty() {
+        out.push("Not brought over:".into());
+        out.extend(r.notes.iter().map(|n| format!("  - {n}")));
+    }
+    out
+}
+
 pub struct Printer {
     color: bool,
 }

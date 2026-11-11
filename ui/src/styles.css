@@ -228,6 +228,10 @@ table.env-vars input[type='password']::placeholder { font-family: 'IBM Plex Sans
 .tree .leaf:hover .del-file, .tree .del-file:focus-visible { display: inline-flex; }
 .tree .del-file:hover { color: var(--bad); }
 .side-problem { margin: 0 18px; }
+.import-result { margin: 0 18px 10px; padding: 10px 12px; border: 1px solid var(--line); border-left: 3px solid var(--ok); background: var(--panel); }
+.import-result p { margin: 0 0 6px; }
+.import-result ul { margin: 0 0 8px; padding-left: 18px; }
+.import-result li { margin: 2px 0; }
 
 .file-bar { display: flex; align-items: baseline; gap: 10px; min-height: 22px; }
 .file-name { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

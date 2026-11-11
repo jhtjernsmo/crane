@@ -14,6 +14,8 @@ export interface Environments {
   /** Saves the environments, then hands each typed secret to the keyring. */
   save: (file: EnvFile, secrets: { envId: string; name: string; value: string }[]) => Promise<void>
   isSet: (envId: string, name: string) => boolean
+  /** Shows environments Rust already saved, for example after an import. */
+  replace: (next: EnvList) => void
 }
 
 export function useEnvironments(): Environments {
@@ -46,5 +48,5 @@ export function useEnvironments(): Environments {
   const isSet = useCallback((envId: string, name: string) => list.secretsSet.includes(`${envId}/${name}`), [list])
   const active = list.environments.find((e) => e.id === list.active) ?? null
 
-  return { list, active, problem, pick, save, isSet }
+  return { list, active, problem, pick, save, isSet, replace: setList }
 }

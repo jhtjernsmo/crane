@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import type { TreeNode } from '../api'
 import type { Collection } from '../useCollection'
 import { ContextMenu, type MenuAt, type MenuItem } from './ContextMenu'
+import { ImportResult } from './ImportResult'
 
 interface Props {
   col: Collection
@@ -92,6 +93,7 @@ export function CollectionTree(props: Props) {
       <div className="pad empty-col">
         <p className="quiet small">Keep requests as .http files in a folder, for example next to your code in git. Secrets stay in the keyring.</p>
         <button type="button" className="btn-quiet" onClick={() => void col.openFolder()}>Open a folder</button>
+        <p className="quiet small">Coming from Postman, Bruno or Insomnia? Open a folder, then Import.</p>
       </div>
     )
   }
@@ -102,6 +104,25 @@ export function CollectionTree(props: Props) {
         <button type="button" className="link" onClick={props.onRunAll} disabled={props.running} title="Send every request and check the answers">Run all</button>
         <button type="button" className="link" onClick={col.newRequest}>New</button>
         <button type="button" className="link" onClick={() => setNewFolder({ parent: '', name: '' })}>Folder</button>
+        <button
+          type="button"
+          className="link"
+          aria-haspopup="menu"
+          title="Bring requests over from Postman, Bruno or Insomnia"
+          onClick={(e) => {
+            const box = e.currentTarget.getBoundingClientRect()
+            setMenu({
+              x: box.left,
+              y: box.bottom + 4,
+              items: [
+                { label: 'Postman or Insomnia export…', onSelect: () => void col.importFrom(false) },
+                { label: 'Bruno collection folder…', onSelect: () => void col.importFrom(true) },
+              ],
+            })
+          }}
+        >
+          Import
+        </button>
         <button type="button" className="link quiet-link" onClick={() => void col.closeFolder()} title="Close the folder">Close</button>
       </div>
       {newFolder !== null && (
@@ -123,6 +144,7 @@ export function CollectionTree(props: Props) {
           />
         </form>
       )}
+      {col.imported && <ImportResult done={col.imported} onClose={col.dismissImport} />}
       <div className="tree-area" onContextMenu={(e) => onMenu(e, null)}>
         {col.view.tree.length === 0 ? (
           <p className="quiet small pad">No .http files here yet. Make a request and press Save.</p>

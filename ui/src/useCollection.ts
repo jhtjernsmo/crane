@@ -7,6 +7,8 @@ import {
   collectionTree,
   createFolder,
   deleteRequest,
+  type ImportDone,
+  importRequests,
   newRequestPath,
   pickCollection,
   readRequest,
@@ -49,6 +51,10 @@ export interface Collection {
   moveSecrets: (names: Record<number, string>) => Promise<void>
   saveAnyway: () => Promise<void>
   dismissReview: () => void
+  /** The last import, until dismissed. */
+  imported: ImportDone | null
+  importFrom: (bruno: boolean) => Promise<void>
+  dismissImport: () => void
 }
 
 export function useCollection(draft: Draft, setDraft: (d: Draft) => void, envs: Environments): Collection {
@@ -56,6 +62,7 @@ export function useCollection(draft: Draft, setDraft: (d: Draft) => void, envs: 
   const [open, setOpen] = useState<OpenFile | null>(null)
   const [review, setReview] = useState<Review | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
+  const [imported, setImported] = useState<ImportDone | null>(null)
 
   const attempt = useCallback(async (work: () => Promise<void>) => {
     try {
@@ -155,5 +162,15 @@ export function useCollection(draft: Draft, setDraft: (d: Draft) => void, envs: 
       }),
     saveAnyway: () => attempt(async () => (review ? write(review.path, review.name, draft, true) : undefined)),
     dismissReview: () => setReview(null),
+    imported,
+    importFrom: (bruno) =>
+      attempt(async () => {
+        const done = await importRequests(bruno)
+        if (!done) return
+        setView(done.collection)
+        envs.replace(done.environments)
+        setImported(done)
+      }),
+    dismissImport: () => setImported(null),
   }
 }

@@ -138,4 +138,21 @@ describe('collections', () => {
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('menu')).toBeNull()
   })
+
+  it('imports a collection and says what still needs doing', async () => {
+    render(<App />)
+    const tree = await screen.findByRole('tree', { name: 'Requests' })
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Postman or Insomnia export…' }))
+
+    const result = await screen.findByRole('status')
+    expect(result.textContent).toContain('Imported 2 requests from Postman into Shop API.')
+    expect(result.textContent).toContain('{{password}} in Shop API')
+    expect(result.textContent).toContain('Pre-request scripts were left out')
+    await waitFor(() => expect(within(tree).getByText('Shop API')).toBeTruthy())
+    expect(preview.list().environments.map((e) => e.name)).toEqual(['Local', 'Shop API'])
+
+    fireEvent.click(within(result).getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('status')).toBeNull()
+  })
 })

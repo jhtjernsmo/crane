@@ -22,6 +22,14 @@ A GitHub Actions job:
     CRANE_VAR_password: ${{ secrets.API_PASSWORD }}
 ```
 
+## Importing
+
+```sh
+crane-cli import shop.postman_collection.json --into api-tests
+```
+
+Reads a Postman collection or environment, an Insomnia v4 export or a Bruno folder, and writes the requests into a new folder inside `--into` (default: here). Environments go to the app's environments file, or `--envs FILE`, with secret values in the keyring. Close the app first, or it may save over them. See [import.md](import.md) for what comes over.
+
 ## Building it
 
 ```sh

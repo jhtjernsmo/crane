@@ -1,7 +1,7 @@
 // Stand-in for the Rust side when the UI runs in a plain browser (npm run dev)
 // or in tests. Everything lives in memory and is gone on reload; the real app
 // keeps plain values in a file and secrets in the system keyring.
-import type { BoxStatus, CheckResult, Policy, CollectionView, Report, StackEvent, StackInfo, EnvFile, EnvList, Environment, Finding, HistoryEntry, ImageView, PortMap, PullProgress, ReadRequest, RunRequest, RequestSpec, Response, SaveResult, SavedRequest, TreeNode } from './api'
+import type { BoxStatus, CheckResult, Policy, CollectionView, ImportDone, Report, StackEvent, StackInfo, EnvFile, EnvList, Environment, Finding, HistoryEntry, ImageView, PortMap, PullProgress, ReadRequest, RunRequest, RequestSpec, Response, SaveResult, SavedRequest, TreeNode } from './api'
 import { check } from './checks'
 import { looksLikeSecret } from './secretScan'
 import { fillVars, findVars, listVars } from './vars'
@@ -194,6 +194,33 @@ export function createFolder(parent: string, name: string): string {
   const path = parent ? `${parent}/${name.trim()}` : name.trim()
   folders.add(path)
   return path
+}
+
+/** Pretends a small Postman collection was picked. */
+export function importRequests(bruno: boolean): ImportDone {
+  const all = need()
+  const from = bruno ? 'Bruno' : 'Postman'
+  const folder = `Shop API${[...folders].includes('Shop API') ? ' (2)' : ''}`
+  folders.add(folder)
+  all.set(`${folder}/01-log-in.http`, {
+    name: 'Log in',
+    method: 'POST',
+    url: '{{base}}/anything/login',
+    headers: [],
+    bodyMode: 'json',
+    body: '{"user": "ada", "password": "{{password}}"}',
+    expect: ['status 200'],
+    save: ['token = json $.json.user'],
+  })
+  all.set(`${folder}/02-list-orders.http`, { name: 'List orders', method: 'GET', url: '{{base}}/anything/orders', headers: [{ name: 'Authorization', value: 'Bearer {{token}}', enabled: true }], bodyMode: 'none', body: '' })
+  const env: Environment = { id: 'shop-api', name: 'Shop API', production: false, vars: [{ name: 'base', value: 'https://httpbin.org', secret: false }, { name: 'password', value: '', secret: true }], network: { caFile: '', clientCertFile: '', insecure: false, proxy: '', noProxy: '' } }
+  if (!file.environments.some((e) => e.id === env.id)) file = { active: file.active ?? env.id, environments: [...file.environments, env] }
+  return {
+    from,
+    report: { folder, requests: 2, environments: ['Shop API'], secretsMoved: [], secretsToSet: ['{{password}} in Shop API'], notes: ['Pre-request scripts were left out; Crane runs no scripts (Log in)'] },
+    collection: view()!,
+    environments: list(),
+  }
 }
 
 export function deleteRequest(path: string) {

@@ -217,6 +217,47 @@ async fn env_list(state: &AppState) -> Result<EnvList, String> {
     Ok(EnvList { active: file.active, environments: file.environments, secrets_set, keyring_problem })
 }
 
+/// What an import did, with the new tree and environments to show.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportDone {
+    from: String,
+    report: crane_core::import::ImportReport,
+    collection: CollectionView,
+    environments: EnvList,
+}
+
+/// Picks a Postman or Insomnia export, or a Bruno folder, from Rust and
+/// writes its requests into the open folder. Secret values go to the
+/// keyring; `None` when the picker was cancelled.
+#[tauri::command]
+async fn import_requests(state: State<'_, AppState>, bruno: bool) -> Result<Option<ImportDone>, String> {
+    let col = state.collection()?;
+    let dialog = rfd::AsyncFileDialog::new();
+    let picked = if bruno {
+        dialog.set_title("Pick the Bruno collection's folder").pick_folder().await
+    } else {
+        dialog.set_title("Pick a Postman or Insomnia export").add_filter("Exports", &["json"]).add_filter("All files", &["*"]).pick_file().await
+    };
+    let Some(picked) = picked else { return Ok(None) };
+    let path = picked.path().to_path_buf();
+    let envs = state.envs();
+    let store = Arc::clone(&state.secrets);
+    let target = col.clone();
+    let (from, next, report) = blocking(move || {
+        let imported = crane_core::import::read(&path)?;
+        let (next, report) = crane_core::import::apply(&imported, &target, &envs, store.as_ref())?;
+        Ok::<_, crane_core::import::ImportError>((imported.from, next, report))
+    })
+    .await?
+    .map_err(|e| e.to_string())?;
+    if !report.environments.is_empty() {
+        next.save(&state.env_path).map_err(|e| e.to_string())?;
+        *state.envs.lock().expect("environments lock") = next;
+    }
+    Ok(Some(ImportDone { from: from.to_string(), report, collection: view(&col)?, environments: env_list(&state).await? }))
+}
+
 #[tauri::command]
 async fn list_environments(state: State<'_, AppState>) -> Result<EnvList, String> {
     env_list(&state).await
@@ -362,6 +403,7 @@ pub fn run() {
             save_environments,
             set_secret,
             pick_collection,
+            import_requests,
             collection_tree,
             close_collection,
             read_request,

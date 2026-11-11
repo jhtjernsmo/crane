@@ -29,6 +29,15 @@ fn main() -> ExitCode {
 
     let args = match args::parse(std::env::args().skip(1)) {
         Ok(Command::Run(a)) => a,
+        Ok(Command::Import(a)) => {
+            return match import(&a) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(e) => {
+                    eprintln!("crane-cli: {e}");
+                    ExitCode::from(2)
+                }
+            };
+        }
         Ok(Command::Help) => {
             println!("{}", args::HELP);
             return ExitCode::SUCCESS;
@@ -87,6 +96,23 @@ fn pick_env(a: &Args) -> Result<Option<Environment>, String> {
 /// looked at first.
 fn store() -> Box<dyn SecretStore> {
     Box::new(crane_core::keyring_store::KeyringSecrets)
+}
+
+/// `crane-cli import`: writes the requests, adds the environments, and says
+/// what did not come over.
+fn import(a: &args::ImportArgs) -> Result<(), String> {
+    let imported = crane_core::import::read(&a.source).map_err(|e| e.to_string())?;
+    let col = Collection::open(&a.into).map_err(|e| e.to_string())?;
+    let env_file = a.envs.clone().or_else(default_env_file).ok_or("Could not find the environments file; pass it with --envs.")?;
+    let envs = EnvFile::load(&env_file).map_err(|e| e.to_string())?;
+    let (next, report) = crane_core::import::apply(&imported, &col, &envs, store().as_ref()).map_err(|e| e.to_string())?;
+    if !report.environments.is_empty() {
+        next.save(&env_file).map_err(|e| e.to_string())?;
+    }
+    for line in output::import_summary(imported.from, &col.root().display().to_string(), &env_file.display().to_string(), &report) {
+        println!("{line}");
+    }
+    Ok(())
 }
 
 /// The folder to open and the requests in it to run.

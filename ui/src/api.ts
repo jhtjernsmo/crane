@@ -218,6 +218,27 @@ export const newRequestPath = (folder: string, name: string) => call<string>('ne
 export const createFolder = (parent: string, name: string) => call<string>('create_folder', { parent, name }, async () => preview.createFolder(parent, name))
 export const deleteRequest = (path: string) => call<void>('delete_request', { path }, async () => preview.deleteRequest(path))
 
+/** What an import wrote, and what it could not bring over. */
+export interface ImportReport {
+  folder: string | null
+  requests: number
+  environments: string[]
+  secretsMoved: string[]
+  secretsToSet: string[]
+  notes: string[]
+}
+
+export interface ImportDone {
+  /** "Postman", "Bruno" or "Insomnia". */
+  from: string
+  report: ImportReport
+  collection: CollectionView
+  environments: EnvList
+}
+
+/** Rust opens the picker (a file, or a folder for Bruno) and writes into the open folder. `null` when cancelled. */
+export const importRequests = (bruno: boolean) => call<ImportDone | null>('import_requests', { bruno }, async () => preview.importRequests(bruno))
+
 // ---- History -------------------------------------------------------------
 
 /** What is kept of a send between runs: never the body of the answer. */

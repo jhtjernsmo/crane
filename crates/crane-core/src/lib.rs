@@ -7,6 +7,7 @@ pub mod collection;
 pub mod env;
 pub mod history;
 pub mod http_file;
+pub mod import;
 #[cfg(feature = "keyring")]
 pub mod keyring_store;
 pub mod network;

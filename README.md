@@ -31,6 +31,7 @@ Crane is built the other way round:
 | --- | --- |
 | **Requests** | Any method and address, headers, query, JSON, text and form bodies, timing split into lookup, connect + TLS, waiting and download. |
 | **Collections** | Plain `.http` files in a folder you choose, readable by VS Code REST Client and JetBrains IDEs too. |
+| **Import** | Collections and environments from Postman, Bruno and Insomnia, with their simple test scripts turned into checks and their secrets moved to the keyring. |
 | **Environments** | `{{variables}}` per environment, secrets in the keyring, CA files, client certificates and proxies for internal APIs. |
 | **Checks** | `status 2xx`, `time < 500ms`, `json $.id = {{user_id}}` in the file; Run all sends a folder and shows what failed. |
 | **crane-cli** | The same run in CI, with JUnit output and secrets from environment variables. |
@@ -76,6 +77,7 @@ Containers run on Linux; see [docs/containers.md](docs/containers.md) for what t
 
 - [Requests, environments and secrets](docs/requests.md)
 - [Checks and runs](docs/checks.md)
+- [Importing from Postman, Bruno and Insomnia](docs/import.md)
 - [crane-cli](docs/cli.md)
 - [Stacks: crane.toml](docs/stacks.md)
 - [The container engine](docs/containers.md)
