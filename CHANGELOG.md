@@ -4,6 +4,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-11
+
 ### Added
 - Import from Postman (collections and environments), Bruno (collection folders) and Insomnia (v4 exports), in the app and with `crane-cli import`. Simple test scripts become `# @expect` and `# @save` lines, secrets typed into requests move to the keyring, and Crane lists what it could not bring over. See [docs/import.md](docs/import.md).
 - Crane updates itself: a few seconds after start it asks GitHub for a newer release and shows "Update to x" in the title bar. Updates are only installed when signed with Crane's update key. `check_updates = false` in the policy file turns the check off.
