@@ -71,7 +71,7 @@ jobs:
           cp "target/release/${{ matrix.cli }}" "$out"
           echo "file=$out" >> "$GITHUB_OUTPUT"
       - name: Attest where the files came from
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             ${{ steps.cli.outputs.file }}
